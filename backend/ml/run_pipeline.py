@@ -3,9 +3,12 @@
 run_pipeline.py — CLI entry point for the Kryptos ML pipeline.
 
 Usage:
-    python -m ml.run_pipeline              # run with synthetic data
-    python -m ml.run_pipeline --json       # output raw JSON instead of pretty report
-    python -m ml.run_pipeline -f data.json # load transactions from a JSON file
+    python -m ml.run_pipeline                                 # synthetic data
+    python -m ml.run_pipeline -f data.json                    # from file
+    python -m ml.run_pipeline --address 0xABC...              # real wallet (depth=1)
+    python -m ml.run_pipeline --address 0xABC... --depth 2    # wallet + neighbors
+    python -m ml.run_pipeline --address 0xABC... --save tx.json  # fetch & save
+    python -m ml.run_pipeline --json                          # raw JSON output
 
 This file is intentionally minimal — all logic lives in the ml/ package.
 """
@@ -20,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from ml.synthetic_data import generate_synthetic_transactions
 from ml.pipeline import run_pipeline, pipeline_to_json
+from ml.data_loader import fetch_neighborhood, save_transactions
 
 
 def _pretty_print_report(output: dict) -> None:
@@ -94,10 +98,43 @@ def main():
         default=None,
         help="Path to a JSON file with manual analyst labels.",
     )
+    parser.add_argument(
+        "--address",
+        type=str,
+        default=None,
+        help="Ethereum wallet address to fetch real transactions for.",
+    )
+    parser.add_argument(
+        "--depth",
+        type=int,
+        default=1,
+        help="Neighborhood expansion depth (1=wallet only, 2=+neighbors). Default: 1.",
+    )
+    parser.add_argument(
+        "--save",
+        type=str,
+        default=None,
+        help="Save fetched transactions to this JSON file for reuse.",
+    )
     args = parser.parse_args()
 
     # Load transactions.
-    if args.file:
+    if args.address:
+        if not args.json:
+            print(f"Fetching real transactions for {args.address} (depth={args.depth})...\n")
+        transactions = fetch_neighborhood(
+            seed_address=args.address,
+            depth=args.depth,
+            verbose=not args.json,
+        )
+        if not transactions:
+            print("ERROR: No transactions found for this address.")
+            sys.exit(1)
+        if args.save:
+            save_transactions(transactions, args.save)
+        if not args.json:
+            print(f"\nFetched {len(transactions)} transactions.\n")
+    elif args.file:
         with open(args.file, "r") as f:
             transactions = json.load(f)
         if not args.json:
