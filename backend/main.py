@@ -1,7 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import requests
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from backend.ml.config import CHAIN_ID, ETHERSCAN_API_KEY
+from backend.on_chain import store_report_on_chain, get_report_from_chain
 
 app = FastAPI()
 
