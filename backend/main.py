@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import requests
-from backend.ml.config import CHAIN_ID
+from backend.ml.config import CHAIN_ID, ETHERSCAN_API_KEY
 
 app = FastAPI()
 
@@ -17,8 +17,6 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# ⚠️ YOUR API KEY HERE
-ETHERSCAN_API_KEY = "PTTZA4C2JB9VYZU4PJRRSMEGV82MXAYS59"
 
 def get_transactions(address):
     # V2 URL for Etherscan — using Base Sepolia via CHAIN_ID
