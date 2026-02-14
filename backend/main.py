@@ -5,21 +5,16 @@ from backend.ml.config import CHAIN_ID, ETHERSCAN_API_KEY
 
 app = FastAPI()
 
-# ==========================================
-# 🚨 CRITICAL: CORS MIDDLEWARE (Do Not Delete)
-# This allows the Frontend (Port 3000) to talk to Backend (Port 8000)
-# ==========================================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins (frontend, curl, etc.)
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
 def get_transactions(address):
-    # V2 URL for Etherscan — using Base Sepolia via CHAIN_ID
     url = f"https://api.etherscan.io/v2/api?chainid={CHAIN_ID}&module=account&action=txlist&address={address}&startblock=0&endblock=99999999&sort=desc&apikey={ETHERSCAN_API_KEY}"
     
     try:
@@ -42,11 +37,8 @@ def get_transactions(address):
 def home():
     return {"status": "Kryptos Backend Running", "chain": "Base Sepolia"}
 
-# In backend/main.py
-
 @app.get("/analyze/{address}")
 def analyze_wallet(address: str):
-    # 1. Force the input address to lowercase immediately
     target_address = address.lower()
     
     txs = get_transactions(target_address)
@@ -93,10 +85,32 @@ def analyze_wallet(address: str):
                 "type": direction
             })
             
+    risk_score = 85
+
+    # Store report on Base
+    on_chain = {}
+    try:
+        on_chain = store_report_on_chain(target_address, risk_score)
+        print(f"📝 On-chain report: {on_chain}")
+    except Exception as e:
+        print(f"⚠️ On-chain write failed (non-fatal): {e}")
+        on_chain = {"error": str(e)}
+
     return {
-        "risk_score": 85, 
+        "risk_score": risk_score,
         "graph": {
             "nodes": nodes,
             "links": links
-        }
+        },
+        "on_chain": on_chain,
     }
+
+
+@app.get("/report/{address}")
+def get_on_chain_report(address: str):
+    """Read an existing on-chain risk report for a wallet."""
+    try:
+        report = get_report_from_chain(address.lower())
+        return report
+    except Exception as e:
+        return {"error": str(e), "on_chain": False}

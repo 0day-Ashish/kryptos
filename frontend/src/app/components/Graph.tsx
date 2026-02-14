@@ -25,28 +25,28 @@ export default function Graph({ address }: { address: string }) {
   }, [address]);
 
   return (
-    <div className="border border-gray-800 rounded-xl overflow-hidden shadow-2xl shadow-blue-900/20 bg-black">
+    <div className="border-2 border-black rounded-xl overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white">
       <ForceGraph2D
         ref={graphRef}
         graphData={graphData}
         nodeLabel="id"
-        
-        // 🎨 COLOR LOGIC: Red for Suspect, Blue for others
-        nodeColor={(node: any) => (node.group === "suspect" ? "#ef4444" : "#3b82f6")}
-        
+
+        // 🎨 COLOR LOGIC: Black for Suspect, Gray for others (Monochrome)
+        nodeColor={(node: any) => (node.group === "suspect" ? "#000000" : "#d1d5db")}
+
         // 📏 SIZE LOGIC: Reduce sizes so they don't blob
         nodeVal={(node: any) => (node.group === "suspect" ? 20 : 5)}
-        
+
         // Arrows
         linkDirectionalArrowLength={3.5}
         linkDirectionalArrowRelPos={1}
         linkWidth={1}
         linkColor={() => "#4b5563"}
-        
-        backgroundColor="#050505"
+
+        backgroundColor="#ffffff"
         width={800}
         height={500}
-        
+
         // 🚀 PHYSICS ENGINE: This spreads them out!
         d3VelocityDecay={0.1} // Lower friction = more movement
         cooldownTicks={100}   // Let it settle

@@ -1,0 +1,25 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Build artifacts
+dist/
+build/
+
+# Midnight Network
+.private-state*/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
