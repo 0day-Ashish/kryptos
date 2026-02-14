@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import requests
+from backend.ml.config import CHAIN_ID
 
 app = FastAPI()
 
@@ -20,8 +21,8 @@ app.add_middleware(
 ETHERSCAN_API_KEY = "PTTZA4C2JB9VYZU4PJRRSMEGV82MXAYS59"
 
 def get_transactions(address):
-    # V2 URL for Etherscan
-    url = f"https://api.etherscan.io/v2/api?chainid=1&module=account&action=txlist&address={address}&startblock=0&endblock=99999999&sort=desc&apikey={ETHERSCAN_API_KEY}"
+    # V2 URL for Etherscan — using Base Sepolia via CHAIN_ID
+    url = f"https://api.etherscan.io/v2/api?chainid={CHAIN_ID}&module=account&action=txlist&address={address}&startblock=0&endblock=99999999&sort=desc&apikey={ETHERSCAN_API_KEY}"
     
     try:
         print(f"📡 Fetching data for: {address}...") 
@@ -41,7 +42,7 @@ def get_transactions(address):
 
 @app.get("/")
 def home():
-    return {"status": "TraceZero Backend Running"}
+    return {"status": "Kryptos Backend Running", "chain": "Base Sepolia"}
 
 # In backend/main.py
 

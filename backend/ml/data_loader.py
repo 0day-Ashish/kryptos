@@ -1,5 +1,5 @@
 """
-data_loader.py — Fetch real Ethereum transactions from Etherscan's free API.
+data_loader.py — Fetch real Base chain transactions from Etherscan's V2 API.
 
 This module converts raw Etherscan API responses into the normalised
 [{from, to, value, timestamp}] format that the ML pipeline expects.
@@ -26,7 +26,7 @@ try:
 except ImportError:
     HAS_REQUESTS = False
 
-from .config import ETHERSCAN_API_KEY
+from .config import ETHERSCAN_API_KEY, CHAIN_ID
 
 
 # -----------------------------------------------------------------------
@@ -72,9 +72,9 @@ def _etherscan_get(params: Dict[str, str]) -> Dict[str, Any]:
 
     key = _get_api_key()
     params["apikey"] = key
-    # Etherscan V2 requires chainid (1 = Ethereum mainnet)
+    # Etherscan V2 requires chainid — imported from config.py
     if "chainid" not in params:
-        params["chainid"] = "1"
+        params["chainid"] = CHAIN_ID
 
     time.sleep(RATE_LIMIT_DELAY)  # rate limit
     _call_count += 1
