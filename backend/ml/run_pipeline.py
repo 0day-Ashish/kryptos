@@ -83,6 +83,17 @@ def main():
         default=0.15,
         help="Isolation Forest contamination parameter (default: 0.15).",
     )
+    parser.add_argument(
+        "--no-labels",
+        action="store_true",
+        help="Disable hybrid scoring (pure unsupervised mode).",
+    )
+    parser.add_argument(
+        "--analyst-labels",
+        type=str,
+        default=None,
+        help="Path to a JSON file with manual analyst labels.",
+    )
     args = parser.parse_args()
 
     # Load transactions.
@@ -101,6 +112,8 @@ def main():
         transactions,
         contamination=args.contamination,
         verbose=not args.json,
+        use_labels=not args.no_labels,
+        analyst_file=args.analyst_labels,
     )
 
     # Output.

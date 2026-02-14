@@ -138,6 +138,30 @@ def generate_synthetic_transactions(seed: int = 42) -> List[Dict[str, Any]]:
         })
 
     # ------------------------------------------------------------------
+    # 4. Inject a known OFAC-sanctioned address into the graph
+    #    This tests hybrid scoring: the address appears in public_labels.py
+    #    so the hybrid scorer should boost its score even if IF alone
+    #    wouldn't flag it strongly.
+    # ------------------------------------------------------------------
+    ofac_wallet = "0x8589427373d6d84e98730d7795d8f6f8731fda16"  # Tornado Cash
+    # It receives from several ring wallets (simulating mixer usage).
+    for i in range(3):
+        txs.append({
+            "from": ring_wallets[i],
+            "to": ofac_wallet,
+            "value": round(rng.uniform(20, 40), 4),
+            "timestamp": base_ts + rng.randint(2000, 3000),
+        })
+    # And sends to a couple of normal wallets (post-mix cashout).
+    for _ in range(2):
+        txs.append({
+            "from": ofac_wallet,
+            "to": rng.choice(normal_wallets),
+            "value": round(rng.uniform(5, 15), 4),
+            "timestamp": base_ts + rng.randint(3000, 4000),
+        })
+
+    # ------------------------------------------------------------------
     # Shuffle to avoid ordering bias
     # ------------------------------------------------------------------
     rng.shuffle(txs)
