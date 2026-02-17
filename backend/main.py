@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 import os
 from collections import Counter
 from datetime import datetime
+from typing import List, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,6 +18,13 @@ try:
     )
     from backend.ml.scorer import wallet_scorer
     from backend.ml.known_labels import lookup_address, label_addresses, is_mixer
+    from backend.ml.tracer import trace_fund_flow
+    from backend.ml.cross_chain import cross_chain_scan
+    from backend.ml.sanctions import check_sanctions, check_counterparty_sanctions
+    from backend.ml.similarity import find_similar_wallets
+    from backend.ml.ens_resolver import resolve_input, is_ens_name
+    from backend.ml.token_portfolio import get_token_portfolio
+    from backend.report_pdf import generate_pdf_report
     from backend.on_chain import store_report_on_chain, get_report_from_chain
 except ModuleNotFoundError:
     from ml.config import CHAIN_ID, ETHERSCAN_API_KEY, SUPPORTED_CHAINS, get_chain_by_id
@@ -26,6 +35,13 @@ except ModuleNotFoundError:
     )
     from ml.scorer import wallet_scorer
     from ml.known_labels import lookup_address, label_addresses, is_mixer
+    from ml.tracer import trace_fund_flow
+    from ml.cross_chain import cross_chain_scan
+    from ml.sanctions import check_sanctions, check_counterparty_sanctions
+    from ml.similarity import find_similar_wallets
+    from ml.ens_resolver import resolve_input, is_ens_name
+    from ml.token_portfolio import get_token_portfolio
+    from report_pdf import generate_pdf_report
     from on_chain import store_report_on_chain, get_report_from_chain
 
 app = FastAPI(title="Kryptos API", version="2.0.0")
@@ -41,7 +57,7 @@ app.add_middleware(
 
 @app.get("/")
 def home():
-    return {"status": "Kryptos Backend Running", "version": "2.0.0", "chains": len(SUPPORTED_CHAINS)}
+    return {"status": "Kryptos Backend Running", "version": "3.0.0", "chains": len(SUPPORTED_CHAINS)}
 
 @app.get("/chains")
 def list_chains():
@@ -50,8 +66,19 @@ def list_chains():
 
 @app.get("/analyze/{address}")
 def analyze_wallet(address: str, chain_id: int = Query(default=1, description="Chain ID to query")):
-    target_address = address.lower()
+    # ENS resolution — accept vitalik.eth or raw address
+    resolved = resolve_input(address)
+    if resolved["resolved"] and resolved["address"]:
+        target_address = resolved["address"].lower()
+        ens_name = resolved.get("ens_name")
+    else:
+        target_address = address.lower()
+        ens_name = None
+
     chain = get_chain_by_id(chain_id)
+
+    # Sanctions pre-check on the target itself
+    sanctions_result = check_sanctions(target_address)
 
     print(f"\n{'='*60}")
     print(f"🔍 Analyzing {target_address} on {chain['name']} (chainid={chain_id})")
@@ -257,6 +284,23 @@ def analyze_wallet(address: str, chain_id: int = Query(default=1, description="C
             if f"Interacted with mixer: {info['label'] if info else addr}" not in flags:
                 flags.append(f"Interacted with mixer: {info['label'] if info else addr}")
 
+    # Step 8b: Sanctions check on counterparties
+    counterparty_sanctions = check_counterparty_sanctions(list(all_counterparty_addrs))
+    if counterparty_sanctions["sanctioned_count"] > 0:
+        for s in counterparty_sanctions["sanctioned_addresses"]:
+            flag_msg = f"Transacted with OFAC-sanctioned address: {s['label']}"
+            if flag_msg not in flags:
+                flags.append(flag_msg)
+
+    # Step 8c: Apply sanctions modifier to risk score
+    if sanctions_result["risk_modifier"] > 0:
+        risk_score = min(100, risk_score + sanctions_result["risk_modifier"])
+        if sanctions_result["is_sanctioned"]:
+            flags.insert(0, "ADDRESS IS ON OFAC SANCTIONS LIST")
+            risk_label = "Critical Risk"
+        elif sanctions_result["is_mixer"]:
+            risk_label = "Critical Risk" if risk_score >= 80 else risk_label
+
     # Step 9: Fetch balance
     balance = fetch_balance(target_address, chain_id)
 
@@ -273,6 +317,7 @@ def analyze_wallet(address: str, chain_id: int = Query(default=1, description="C
 
     return {
         "address": target_address,
+        "ens_name": ens_name,
         "risk_score": risk_score,
         "risk_label": risk_label,
         "ml_raw_score": ml_raw_score,
@@ -287,6 +332,8 @@ def analyze_wallet(address: str, chain_id: int = Query(default=1, description="C
         "top_counterparties": top_counterparties,
         "timeline": timeline_data,
         "mixer_interactions": mixer_interactions,
+        "sanctions": sanctions_result,
+        "counterparty_sanctions": counterparty_sanctions,
         "chain": {
             "id": chain["id"], "name": chain["name"],
             "short": chain["short"], "explorer": chain["explorer"],
@@ -321,3 +368,89 @@ def get_on_chain_report(address: str):
         return report
     except Exception as e:
         return {"error": str(e), "on_chain": False}
+
+
+# ── New Endpoints (v3.0) ────────────────────────────────────────────────────
+
+@app.get("/resolve/{name}")
+def resolve_name(name: str):
+    """Resolve ENS name to address, or reverse-resolve address to ENS."""
+    return resolve_input(name)
+
+
+@app.get("/trace/{address}")
+def trace_funds(
+    address: str,
+    chain_id: int = Query(default=1),
+    depth: int = Query(default=3, ge=1, le=5),
+    min_value: float = Query(default=0.01),
+    direction: str = Query(default="out", regex="^(in|out)$"),
+):
+    """
+    Trace fund flow from a wallet.
+    Follow outgoing or incoming transactions up to N hops deep.
+    """
+    return trace_fund_flow(
+        address=address.lower(),
+        chain_id=chain_id,
+        max_depth=depth,
+        min_value_eth=min_value,
+        direction=direction,
+    )
+
+
+@app.get("/cross-chain/{address}")
+def cross_chain(address: str):
+    """Scan a wallet across all 14 supported chains."""
+    return cross_chain_scan(address.lower())
+
+
+@app.get("/sanctions/{address}")
+def sanctions_check(address: str):
+    """Check if a wallet is on OFAC sanctions list or other blocklists."""
+    return check_sanctions(address.lower())
+
+
+@app.get("/tokens/{address}")
+def token_portfolio(address: str, chain_id: int = Query(default=1)):
+    """Get ERC-20 token portfolio and transfer analysis for a wallet."""
+    return get_token_portfolio(address.lower(), chain_id)
+
+
+@app.get("/similar/{address}")
+def similar_wallets(
+    address: str,
+    chain_id: int = Query(default=1),
+    top_k: int = Query(default=5, ge=1, le=20),
+):
+    """
+    Find wallets with similar behavioral patterns.
+    Uses the wallet's neighbors as candidates for comparison.
+    """
+    target = address.lower()
+    txns = fetch_transactions(target, chain_id, max_results=200)
+    if not txns:
+        return {"target": {"address": target}, "similar": [], "candidates_checked": 0}
+
+    # Use top neighbors as candidates
+    candidates = discover_neighbors(target, txns, max_neighbors=15)
+    return find_similar_wallets(target, candidates, chain_id, top_k)
+
+
+@app.get("/report/{address}/pdf")
+def download_pdf_report(address: str, chain_id: int = Query(default=1)):
+    """Generate and download a PDF investigation report."""
+    # Run analysis
+    analysis = analyze_wallet(address, chain_id)
+
+    # Generate PDF
+    pdf_buffer = generate_pdf_report(analysis)
+
+    short = address[:10].lower()
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="kryptos-report-{short}.pdf"'
+        },
+    )

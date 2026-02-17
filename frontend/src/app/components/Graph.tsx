@@ -81,8 +81,20 @@ export default function Graph({ address, graphData: externalData }: GraphProps) 
     return `<div style="background:#000;color:#fff;padding:6px 10px;border-radius:6px;font-size:11px;max-width:220px">${label}${cat}<code>${short}</code></div>`;
   }, []);
 
+  const [bgColor, setBgColor] = useState("#ffffff");
+
+  useEffect(() => {
+    const isDark = document.documentElement.classList.contains("dark");
+    setBgColor(isDark ? "#09090b" : "#ffffff");
+    const observer = new MutationObserver(() => {
+      setBgColor(document.documentElement.classList.contains("dark") ? "#09090b" : "#ffffff");
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="border-2 border-black rounded-xl overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white">
+    <div className="border-2 border-[var(--card-border)] rounded-xl overflow-hidden shadow-[4px_4px_0px_0px_var(--shadow)] bg-[var(--card-bg)]">
       <ForceGraph2D
         ref={graphRef}
         graphData={graphData}
@@ -98,8 +110,8 @@ export default function Graph({ address, graphData: externalData }: GraphProps) 
         linkDirectionalArrowLength={3.5}
         linkDirectionalArrowRelPos={1}
         linkWidth={1}
-        linkColor={() => "#4b5563"}
-        backgroundColor="#ffffff"
+        linkColor={() => bgColor === "#09090b" ? "#71717a" : "#4b5563"}
+        backgroundColor={bgColor}
         width={800}
         height={500}
         d3VelocityDecay={0.1}
@@ -107,13 +119,13 @@ export default function Graph({ address, graphData: externalData }: GraphProps) 
         onEngineStop={() => graphRef.current?.zoomToFit(400)}
       />
       {/* Legend */}
-      <div className="flex flex-wrap gap-3 px-4 py-2 border-t border-gray-200 bg-gray-50">
+      <div className="flex flex-wrap gap-3 px-4 py-2 border-t border-[var(--muted)] bg-[var(--muted)]">
         {Object.entries(CATEGORY_COLORS)
           .filter(([k]) => k !== "neighbor")
           .map(([cat, color]) => (
             <div key={cat} className="flex items-center gap-1">
               <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-              <span className="text-[10px] text-gray-500 capitalize">{cat}</span>
+              <span className="text-[10px] text-[var(--muted-fg)] capitalize">{cat}</span>
             </div>
           ))}
       </div>

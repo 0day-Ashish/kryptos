@@ -25,35 +25,35 @@ export default function Timeline({ data, native }: TimelineProps) {
 
   if (!data || data.length === 0) {
     return (
-      <div className="border-2 border-black rounded-xl p-8 text-center text-gray-400 text-sm shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white">
+      <div className="border-2 border-[var(--card-border)] rounded-xl p-8 text-center text-[var(--muted-fg)] text-sm shadow-[4px_4px_0px_0px_var(--shadow)] bg-[var(--card-bg)]">
         No timeline data available
       </div>
     );
   }
 
   return (
-    <div className="border-2 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white overflow-hidden">
+    <div className="border-2 border-[var(--card-border)] rounded-xl shadow-[4px_4px_0px_0px_var(--shadow)] bg-[var(--card-bg)] overflow-hidden">
       {/* Summary Stats */}
-      <div className="flex gap-6 px-5 py-3 border-b border-gray-200 bg-gray-50">
+      <div className="flex gap-6 px-5 py-3 border-b border-[var(--muted)] bg-[var(--muted)]">
         <div className="flex items-center gap-1.5 text-xs">
-          <TrendingUp size={12} className="text-gray-400" />
-          <span className="text-gray-500">Period:</span>
-          <span className="font-mono font-bold text-black">{data.length} days</span>
+          <TrendingUp size={12} className="text-[var(--muted-fg)]" />
+          <span className="text-[var(--muted-fg)]">Period:</span>
+          <span className="font-mono font-bold">{data.length} days</span>
         </div>
         <div className="flex items-center gap-1.5 text-xs">
-          <ArrowUpRight size={12} className="text-gray-400" />
-          <span className="text-gray-500">Total Txns:</span>
-          <span className="font-mono font-bold text-black">{totalTx}</span>
+          <ArrowUpRight size={12} className="text-[var(--muted-fg)]" />
+          <span className="text-[var(--muted-fg)]">Total Txns:</span>
+          <span className="font-mono font-bold">{totalTx}</span>
         </div>
         <div className="flex items-center gap-1.5 text-xs">
-          <ArrowDownLeft size={12} className="text-gray-400" />
-          <span className="text-gray-500">Volume:</span>
-          <span className="font-mono font-bold text-black">{totalVolume.toFixed(4)} {native}</span>
+          <ArrowDownLeft size={12} className="text-[var(--muted-fg)]" />
+          <span className="text-[var(--muted-fg)]">Volume:</span>
+          <span className="font-mono font-bold">{totalVolume.toFixed(4)} {native}</span>
         </div>
         {peakDay && (
           <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-gray-500">Peak:</span>
-            <span className="font-mono font-bold text-black">{peakDay.date} ({peakDay.tx_count} txns)</span>
+            <span className="text-[var(--muted-fg)]">Peak:</span>
+            <span className="font-mono font-bold">{peakDay.date} ({peakDay.tx_count} txns)</span>
           </div>
         )}
       </div>
@@ -73,10 +73,10 @@ export default function Timeline({ data, native }: TimelineProps) {
               >
                 {/* Tooltip */}
                 <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-10 pointer-events-none">
-                  <div className="bg-black text-white text-[10px] px-2 py-1.5 rounded-md whitespace-nowrap shadow-lg">
+                  <div className="bg-[var(--accent)] text-[var(--accent-fg)] text-[10px] px-2 py-1.5 rounded-md whitespace-nowrap shadow-lg">
                     <p className="font-bold">{entry.date}</p>
                     <p>{entry.tx_count} txns · {entry.volume.toFixed(4)} {native}</p>
-                    <p className="text-gray-300">{entry.in_count} in / {entry.out_count} out</p>
+                    <p className="opacity-70">{entry.in_count} in / {entry.out_count} out</p>
                   </div>
                 </div>
                 {/* Bar — gradient shows in/out ratio */}
@@ -84,7 +84,8 @@ export default function Timeline({ data, native }: TimelineProps) {
                   className="w-full rounded-t-sm transition-all duration-300 hover:opacity-80 cursor-pointer"
                   style={{
                     height: `${Math.max(barHeight, 2)}%`,
-                    background: `linear-gradient(to top, #000 ${outPct}%, #9ca3af ${outPct}%)`,
+                    background: `linear-gradient(to top, var(--foreground) ${outPct}%, var(--muted-fg) ${outPct}%)`,
+                    opacity: 0.8,
                   }}
                 />
               </div>
@@ -94,28 +95,28 @@ export default function Timeline({ data, native }: TimelineProps) {
 
         {/* X-axis labels (first, mid, last) */}
         <div className="flex justify-between mt-2">
-          <span className="text-[10px] text-gray-400 font-mono">{data[0]?.date}</span>
+          <span className="text-[10px] text-[var(--muted-fg)] font-mono">{data[0]?.date}</span>
           {data.length > 2 && (
-            <span className="text-[10px] text-gray-400 font-mono">{data[Math.floor(data.length / 2)]?.date}</span>
+            <span className="text-[10px] text-[var(--muted-fg)] font-mono">{data[Math.floor(data.length / 2)]?.date}</span>
           )}
-          <span className="text-[10px] text-gray-400 font-mono">{data[data.length - 1]?.date}</span>
+          <span className="text-[10px] text-[var(--muted-fg)] font-mono">{data[data.length - 1]?.date}</span>
         </div>
 
         {/* Legend */}
         <div className="flex gap-4 mt-3">
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 bg-black rounded-sm" />
-            <span className="text-[10px] text-gray-500">Outgoing</span>
+            <div className="w-3 h-3 bg-[var(--foreground)] rounded-sm" />
+            <span className="text-[10px] text-[var(--muted-fg)]">Outgoing</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 bg-gray-400 rounded-sm" />
-            <span className="text-[10px] text-gray-500">Incoming</span>
+            <div className="w-3 h-3 bg-[var(--muted-fg)] rounded-sm" />
+            <span className="text-[10px] text-[var(--muted-fg)]">Incoming</span>
           </div>
         </div>
 
         {/* Volume sparkline */}
         <div className="mt-4">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">
+          <p className="text-[10px] text-[var(--muted-fg)] uppercase tracking-wider font-semibold mb-1">
             Volume ({native})
           </p>
           <div className="flex items-end gap-[2px] h-12">
@@ -124,7 +125,7 @@ export default function Timeline({ data, native }: TimelineProps) {
               return (
                 <div
                   key={i}
-                  className="flex-1 bg-gray-200 hover:bg-gray-400 rounded-t-sm transition-colors min-w-[3px] cursor-pointer"
+                  className="flex-1 bg-[var(--muted)] hover:bg-[var(--muted-fg)] rounded-t-sm transition-colors min-w-[3px] cursor-pointer"
                   style={{ height: `${Math.max(h, 2)}%` }}
                   title={`${entry.date}: ${entry.volume.toFixed(4)} ${native}`}
                 />
