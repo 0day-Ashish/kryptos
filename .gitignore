@@ -7,4 +7,4 @@ __pycache__/
 backend/ml/config.py
 backend/.env
 
-.cache
+backend/.cache
