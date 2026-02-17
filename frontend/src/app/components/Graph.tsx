@@ -81,7 +81,32 @@ export default function Graph({ address, graphData: externalData }: GraphProps) 
     return `<div style="background:#000;color:#fff;padding:6px 10px;border-radius:6px;font-size:11px;max-width:220px">${label}${cat}<code>${short}</code></div>`;
   }, []);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 900, height: 600 });
   const [bgColor, setBgColor] = useState("#ffffff");
+
+  /* Responsive sizing — track container width */
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateSize = () => {
+      const rect = container.getBoundingClientRect();
+      setDimensions({
+        width: Math.floor(rect.width),
+        height: Math.max(500, Math.floor(window.innerHeight * 0.55)),
+      });
+    };
+
+    updateSize();
+    const ro = new ResizeObserver(updateSize);
+    ro.observe(container);
+    window.addEventListener("resize", updateSize);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", updateSize);
+    };
+  }, []);
 
   useEffect(() => {
     const isDark = document.documentElement.classList.contains("dark");
@@ -94,7 +119,7 @@ export default function Graph({ address, graphData: externalData }: GraphProps) 
   }, []);
 
   return (
-    <div className="border-2 border-[var(--card-border)] rounded-xl overflow-hidden shadow-[4px_4px_0px_0px_var(--shadow)] bg-[var(--card-bg)]">
+    <div ref={containerRef} className="w-full border-2 border-[var(--card-border)] rounded-xl overflow-hidden shadow-[4px_4px_0px_0px_var(--shadow)] bg-[var(--card-bg)]">
       <ForceGraph2D
         ref={graphRef}
         graphData={graphData}
@@ -112,11 +137,11 @@ export default function Graph({ address, graphData: externalData }: GraphProps) 
         linkWidth={1}
         linkColor={() => bgColor === "#09090b" ? "#71717a" : "#4b5563"}
         backgroundColor={bgColor}
-        width={800}
-        height={500}
+        width={dimensions.width}
+        height={dimensions.height}
         d3VelocityDecay={0.1}
         cooldownTicks={100}
-        onEngineStop={() => graphRef.current?.zoomToFit(400)}
+        onEngineStop={() => graphRef.current?.zoomToFit(400, 50)}
       />
       {/* Legend */}
       <div className="flex flex-wrap gap-3 px-4 py-2 border-t border-[var(--muted)] bg-[var(--muted)]">
