@@ -6,7 +6,9 @@ import {
   ShieldAlert, Search, Share2, Activity, CheckCircle, ChevronDown,
   AlertTriangle, Zap, Copy, Check, Download, Clock, Users, Wallet,
   ArrowUpRight, ArrowDownLeft, Loader2, Moon, Sun, FileText, Radar,
-  Globe, Ban, Fingerprint, GitBranch,
+  Globe, Ban, Fingerprint, GitBranch, Brain, TrendingUp, Bot,
+  BarChart3, Flag, MessageSquare, SendHorizontal, ThumbsUp, ThumbsDown,
+  Upload, Layers,
 } from "lucide-react";
 
 type Chain = {
@@ -77,6 +79,11 @@ type AnalysisResult = {
   counterparty_sanctions: CounterpartySanctions;
   chain: Chain;
   graph: { nodes: any[]; links: any[] };
+  gnn: GnnResult | null;
+  temporal: TemporalResult | null;
+  mev: MevResult | null;
+  bridges: BridgeResult | null;
+  community_risk_modifier: number;
   on_chain: Record<string, any>;
 };
 
@@ -121,6 +128,84 @@ type TokenEntry = {
   flags: string[];
 };
 
+type GnnResult = {
+  gnn_score: number;
+  gnn_embedding: number[];
+  mahalanobis_distance: number;
+  cosine_anomaly: number;
+  degree_ratio: number;
+  graph_stats: {
+    n_nodes: number;
+    n_edges: number;
+    avg_degree: number;
+    target_degree: number;
+  };
+};
+
+type TemporalAnomaly = {
+  date: string;
+  z_score?: number;
+  value?: number;
+  type?: string;
+  direction?: string;
+};
+
+type TemporalResult = {
+  temporal_risk_score: number;
+  zscore_anomalies: TemporalAnomaly[];
+  volume_anomalies: TemporalAnomaly[];
+  changepoints_txcount: TemporalAnomaly[];
+  regime_shifts: TemporalAnomaly[];
+  burst_analysis: {
+    burst_count: number;
+    longest_burst: number;
+    avg_burst_gap_sec: number;
+    burst_pct: number;
+  };
+  days_analyzed: number;
+};
+
+type MevResult = {
+  is_mev_bot: boolean;
+  mev_risk_score: number;
+  sandwiches: any[];
+  frontrunning: any[];
+  gas_analysis: Record<string, any>;
+  dex_pattern: Record<string, any>;
+  known_bots: { address: string; label: string }[];
+  arb_analysis: Record<string, any>;
+  mev_flags: string[];
+};
+
+type BridgeUsed = {
+  protocol: string;
+  txn_count: number;
+  volume_eth: number;
+  contracts: string[];
+  directions: string[];
+};
+
+type BridgeResult = {
+  bridges_used: BridgeUsed[];
+  total_bridge_txns: number;
+  total_bridge_volume: number;
+  bridge_risk_score: number;
+  bridge_flags: string[];
+  bridge_timeline: any[];
+};
+
+type CommunityReport = {
+  id: string;
+  address: string;
+  category: string;
+  description: string;
+  reporter_id: string;
+  date: string;
+  upvotes: number;
+  downvotes: number;
+  status: string;
+};
+
 const HISTORY_KEY = "kryptos_search_history";
 const THEME_KEY = "kryptos_theme";
 const MAX_HISTORY = 8;
@@ -144,7 +229,10 @@ const LOADING_STEPS = [
   "Discovering neighbors...",
   "Fetching neighbor data...",
   "Running ML scorer...",
-  "Computing counterparties...",
+  "Running GNN analysis...",
+  "Temporal anomaly detection...",
+  "MEV bot detection...",
+  "Bridge tracking...",
   "Finalizing report...",
 ];
 
@@ -174,6 +262,16 @@ export default function Home() {
   const [tokenLoading, setTokenLoading] = useState(false);
   const [similarData, setSimilarData] = useState<any>(null);
   const [similarLoading, setSimilarLoading] = useState(false);
+
+  // Advanced data tabs
+  const [communityData, setCommunityData] = useState<any>(null);
+  const [communityLoading, setCommunityLoading] = useState(false);
+  const [reportCategory, setReportCategory] = useState("scam");
+  const [reportDescription, setReportDescription] = useState("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [batchInput, setBatchInput] = useState("");
+  const [batchResult, setBatchResult] = useState<any>(null);
+  const [batchLoading, setBatchLoading] = useState(false);
 
   // Dark mode init
   useEffect(() => {
@@ -230,6 +328,8 @@ export default function Home() {
     setCrossChainData(null);
     setTokenData(null);
     setSimilarData(null);
+    setCommunityData(null);
+    setBatchResult(null);
     fetch(`http://127.0.0.1:8000/analyze/${address}?chain_id=${selectedChain}`)
       .then((r) => r.json())
       .then((data: AnalysisResult) => {
@@ -291,6 +391,55 @@ export default function Home() {
       .finally(() => setSimilarLoading(false));
   };
 
+  const loadCommunity = () => {
+    if (communityData || communityLoading) return;
+    setCommunityLoading(true);
+    fetch(`http://127.0.0.1:8000/community/reports/${target}`)
+      .then((r) => r.json())
+      .then(setCommunityData)
+      .catch(() => {})
+      .finally(() => setCommunityLoading(false));
+  };
+
+  const submitCommunityReport = () => {
+    if (!target || reportSubmitting) return;
+    setReportSubmitting(true);
+    fetch("http://127.0.0.1:8000/community/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address: target, category: reportCategory, description: reportDescription, chain_id: selectedChain }),
+    })
+      .then((r) => r.json())
+      .then(() => { setCommunityData(null); loadCommunity(); setReportDescription(""); })
+      .catch(() => {})
+      .finally(() => setReportSubmitting(false));
+  };
+
+  const voteReport = (reportId: string, vote: string) => {
+    fetch("http://127.0.0.1:8000/community/vote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ report_id: reportId, vote }),
+    })
+      .then(() => { setCommunityData(null); loadCommunity(); })
+      .catch(() => {});
+  };
+
+  const runBatchAnalysis = () => {
+    if (!batchInput.trim() || batchLoading) return;
+    setBatchLoading(true);
+    const addresses = batchInput.split(/[\n,]/).map((a) => a.trim()).filter(Boolean);
+    fetch("http://127.0.0.1:8000/batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ addresses, chain_id: selectedChain, quick: true }),
+    })
+      .then((r) => r.json())
+      .then(setBatchResult)
+      .catch(() => {})
+      .finally(() => setBatchLoading(false));
+  };
+
   const handleVerify = () => {
     if (!target) return;
     setOnChainLoading(true);
@@ -332,7 +481,7 @@ export default function Home() {
   const riskBarColor = riskScore >= 75 ? "bg-black dark:bg-white" : riskScore >= 40 ? "bg-gray-600 dark:bg-gray-400" : "bg-gray-300 dark:bg-gray-600";
 
   // Fund flow recursive renderer
-  const renderFlowNode = (node: FundFlowNode, depth: number = 0): JSX.Element => (
+  const renderFlowNode = (node: FundFlowNode, depth: number = 0): React.JSX.Element => (
     <div key={node.address + depth} className={`${depth > 0 ? "ml-6 border-l-2 border-gray-200 dark:border-zinc-700 pl-4" : ""}`}>
       <div className="flex items-center gap-2 py-1">
         <div className={`w-2 h-2 rounded-full ${
@@ -561,6 +710,11 @@ export default function Home() {
               { key: "crosschain", label: "Cross-Chain", icon: Globe },
               { key: "tokens", label: "Tokens", icon: Wallet },
               { key: "similar", label: "Similar", icon: Fingerprint },
+              { key: "gnn", label: "GNN", icon: Brain },
+              { key: "temporal", label: "Temporal", icon: TrendingUp },
+              { key: "mev", label: "MEV", icon: Bot },
+              { key: "bridges", label: "Bridges", icon: Layers },
+              { key: "community", label: "Reports", icon: Flag },
             ]).map((tab) => (
               <button
                 key={tab.key}
@@ -570,6 +724,7 @@ export default function Home() {
                   if (tab.key === "crosschain") loadCrossChain();
                   if (tab.key === "tokens") loadTokens();
                   if (tab.key === "similar") loadSimilar();
+                  if (tab.key === "community") loadCommunity();
                 }}
                 className={`px-3 py-2 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
                   activeTab === tab.key ? "bg-[var(--accent)] text-[var(--accent-fg)] shadow" : "text-[var(--muted-fg)] hover:text-[var(--foreground)]"
@@ -751,6 +906,285 @@ export default function Home() {
             </div>
           )}
 
+          {/* GNN Tab */}
+          {activeTab === "gnn" && (
+            <div className="border-2 border-[var(--card-border)] rounded-xl shadow-[4px_4px_0px_0px_var(--shadow)] bg-[var(--card-bg)] p-5">
+              <h3 className="font-bold text-sm mb-4 flex items-center gap-2"><Brain size={16} />Graph Neural Network Analysis</h3>
+              {result.gnn && result.gnn.gnn_score !== undefined ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">GNN Score</p>
+                      <p className={`text-2xl font-mono font-bold ${result.gnn.gnn_score >= 60 ? "text-red-500" : result.gnn.gnn_score >= 30 ? "text-amber-500" : "text-green-500"}`}>{result.gnn.gnn_score}<span className="text-sm text-[var(--muted-fg)]">/100</span></p>
+                    </div>
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">Mahalanobis Dist</p>
+                      <p className="text-lg font-mono font-bold">{result.gnn.mahalanobis_distance}</p>
+                    </div>
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">Cosine Anomaly</p>
+                      <p className="text-lg font-mono font-bold">{result.gnn.cosine_anomaly}</p>
+                    </div>
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">Degree Ratio</p>
+                      <p className="text-lg font-mono font-bold">{result.gnn.degree_ratio}</p>
+                    </div>
+                  </div>
+                  {result.gnn.graph_stats && (
+                    <div className="text-xs text-[var(--muted-fg)] flex gap-4 flex-wrap">
+                      <span>Graph Nodes: <strong className="text-[var(--foreground)]">{result.gnn.graph_stats.n_nodes}</strong></span>
+                      <span>Edges: <strong className="text-[var(--foreground)]">{result.gnn.graph_stats.n_edges}</strong></span>
+                      <span>Avg Degree: <strong className="text-[var(--foreground)]">{result.gnn.graph_stats.avg_degree}</strong></span>
+                      <span>Target Degree: <strong className="text-[var(--foreground)]">{result.gnn.graph_stats.target_degree}</strong></span>
+                    </div>
+                  )}
+                  <p className="text-xs text-[var(--muted-fg)]">The GNN propagates features through the transaction graph via 2-layer Graph Convolution, then measures how the target node&apos;s embedding deviates from the graph-level distribution.</p>
+                </div>
+              ) : <div className="text-sm text-[var(--muted-fg)]">GNN analysis not available for this wallet</div>}
+            </div>
+          )}
+
+          {/* Temporal Tab */}
+          {activeTab === "temporal" && (
+            <div className="border-2 border-[var(--card-border)] rounded-xl shadow-[4px_4px_0px_0px_var(--shadow)] bg-[var(--card-bg)] p-5">
+              <h3 className="font-bold text-sm mb-4 flex items-center gap-2"><TrendingUp size={16} />Temporal Anomaly Detection</h3>
+              {result.temporal && result.temporal.temporal_risk_score !== undefined ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">Temporal Risk</p>
+                      <p className={`text-2xl font-mono font-bold ${result.temporal.temporal_risk_score >= 60 ? "text-red-500" : result.temporal.temporal_risk_score >= 30 ? "text-amber-500" : "text-green-500"}`}>{result.temporal.temporal_risk_score}<span className="text-sm text-[var(--muted-fg)]">/100</span></p>
+                    </div>
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">Days Analyzed</p>
+                      <p className="text-lg font-mono font-bold">{result.temporal.days_analyzed}</p>
+                    </div>
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">Spikes Detected</p>
+                      <p className="text-lg font-mono font-bold">{result.temporal.zscore_anomalies?.length || 0}</p>
+                    </div>
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">Regime Shifts</p>
+                      <p className="text-lg font-mono font-bold">{result.temporal.regime_shifts?.length || 0}</p>
+                    </div>
+                  </div>
+                  {result.temporal.burst_analysis && (
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-xs font-bold mb-2">Burst Analysis</p>
+                      <div className="flex gap-4 text-xs text-[var(--muted-fg)]">
+                        <span>Bursts: <strong className="text-[var(--foreground)]">{result.temporal.burst_analysis.burst_count}</strong></span>
+                        <span>Longest streak: <strong className="text-[var(--foreground)]">{result.temporal.burst_analysis.longest_burst} txns</strong></span>
+                        <span>Burst %: <strong className="text-[var(--foreground)]">{result.temporal.burst_analysis.burst_pct}%</strong></span>
+                        <span>Avg gap: <strong className="text-[var(--foreground)]">{result.temporal.burst_analysis.avg_burst_gap_sec}s</strong></span>
+                      </div>
+                    </div>
+                  )}
+                  {result.temporal.zscore_anomalies?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold mb-2">Activity Spikes</p>
+                      <div className="flex flex-wrap gap-2">
+                        {result.temporal.zscore_anomalies.slice(0, 8).map((a, i) => (
+                          <span key={i} className={`text-[10px] px-2 py-1 rounded border font-mono ${a.type === "spike" ? "bg-red-50 dark:bg-red-950 border-red-300 dark:border-red-800 text-red-700 dark:text-red-400" : "bg-blue-50 dark:bg-blue-950 border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-400"}`}>
+                            {a.date} ({a.type}) z={a.z_score}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : <div className="text-sm text-[var(--muted-fg)]">Temporal analysis not available</div>}
+            </div>
+          )}
+
+          {/* MEV Tab */}
+          {activeTab === "mev" && (
+            <div className="border-2 border-[var(--card-border)] rounded-xl shadow-[4px_4px_0px_0px_var(--shadow)] bg-[var(--card-bg)] p-5">
+              <h3 className="font-bold text-sm mb-4 flex items-center gap-2"><Bot size={16} />MEV Bot Detection</h3>
+              {result.mev && result.mev.mev_risk_score !== undefined ? (
+                <div className="space-y-4">
+                  {result.mev.is_mev_bot && (
+                    <div className="p-3 bg-red-50 dark:bg-red-950 border border-red-400 rounded-lg text-sm font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
+                      <Bot size={16} />This address exhibits MEV bot behavior
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">MEV Risk</p>
+                      <p className={`text-2xl font-mono font-bold ${result.mev.mev_risk_score >= 60 ? "text-red-500" : result.mev.mev_risk_score >= 30 ? "text-amber-500" : "text-green-500"}`}>{result.mev.mev_risk_score}<span className="text-sm text-[var(--muted-fg)]">/100</span></p>
+                    </div>
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">Sandwiches</p>
+                      <p className="text-lg font-mono font-bold">{result.mev.sandwiches?.length || 0}</p>
+                    </div>
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">Front-runs</p>
+                      <p className="text-lg font-mono font-bold">{result.mev.frontrunning?.length || 0}</p>
+                    </div>
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">DEX Ratio</p>
+                      <p className="text-lg font-mono font-bold">{((result.mev.dex_pattern?.dex_ratio || 0) * 100).toFixed(0)}%</p>
+                    </div>
+                  </div>
+                  {result.mev.gas_analysis && (
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-xs font-bold mb-2">Gas Analysis</p>
+                      <div className="flex gap-4 text-xs text-[var(--muted-fg)] flex-wrap">
+                        <span>Mean: <strong className="text-[var(--foreground)]">{result.mev.gas_analysis.mean_gas_gwei} Gwei</strong></span>
+                        <span>Max: <strong className="text-[var(--foreground)]">{result.mev.gas_analysis.max_gas_gwei} Gwei</strong></span>
+                        <span>CV: <strong className="text-[var(--foreground)]">{result.mev.gas_analysis.gas_cv}</strong></span>
+                        {result.mev.gas_analysis.is_gas_outlier && <span className="text-red-500 font-bold">⚠ Gas Outlier</span>}
+                      </div>
+                    </div>
+                  )}
+                  {result.mev.mev_flags?.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {result.mev.mev_flags.map((f, i) => (
+                        <span key={i} className="text-[10px] px-2 py-1 rounded bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400 flex items-center gap-1"><AlertTriangle size={10} />{f}</span>
+                      ))}
+                    </div>
+                  )}
+                  {result.mev.known_bots?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold mb-2">Known Bot Interactions</p>
+                      {result.mev.known_bots.map((b, i) => (
+                        <div key={i} className="text-xs text-[var(--muted-fg)] py-1">
+                          <span className="font-mono">{b.address.slice(0, 10)}...</span> → <span className="font-medium text-[var(--foreground)]">{b.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : <div className="text-sm text-[var(--muted-fg)]">MEV analysis not available</div>}
+            </div>
+          )}
+
+          {/* Bridges Tab */}
+          {activeTab === "bridges" && (
+            <div className="border-2 border-[var(--card-border)] rounded-xl shadow-[4px_4px_0px_0px_var(--shadow)] bg-[var(--card-bg)] p-5">
+              <h3 className="font-bold text-sm mb-4 flex items-center gap-2"><Layers size={16} />Bridge Protocol Tracking</h3>
+              {result.bridges && result.bridges.bridge_risk_score !== undefined ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">Bridge Risk</p>
+                      <p className={`text-2xl font-mono font-bold ${result.bridges.bridge_risk_score >= 60 ? "text-red-500" : result.bridges.bridge_risk_score >= 30 ? "text-amber-500" : "text-green-500"}`}>{result.bridges.bridge_risk_score}<span className="text-sm text-[var(--muted-fg)]">/100</span></p>
+                    </div>
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">Bridge Txns</p>
+                      <p className="text-lg font-mono font-bold">{result.bridges.total_bridge_txns}</p>
+                    </div>
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">Volume Bridged</p>
+                      <p className="text-lg font-mono font-bold">{result.bridges.total_bridge_volume} ETH</p>
+                    </div>
+                    <div className="bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                      <p className="text-[10px] text-[var(--muted-fg)] uppercase">Protocols</p>
+                      <p className="text-lg font-mono font-bold">{result.bridges.bridges_used?.length || 0}</p>
+                    </div>
+                  </div>
+                  {result.bridges.bridges_used?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold mb-2">Bridges Used</p>
+                      <div className="space-y-2">
+                        {result.bridges.bridges_used.map((b, i) => (
+                          <div key={i} className="flex items-center justify-between bg-[var(--muted)] rounded-lg p-3 border border-[var(--card-border)]">
+                            <div>
+                              <span className="text-sm font-bold">{b.protocol}</span>
+                              <span className="text-xs text-[var(--muted-fg)] ml-2">{b.directions.join(", ")}</span>
+                            </div>
+                            <div className="flex gap-4 text-xs text-[var(--muted-fg)]">
+                              <span>Txns: <strong className="text-[var(--foreground)]">{b.txn_count}</strong></span>
+                              <span>Vol: <strong className="text-[var(--foreground)]">{b.volume_eth} ETH</strong></span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {result.bridges.bridge_flags?.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {result.bridges.bridge_flags.map((f, i) => (
+                        <span key={i} className="text-[10px] px-2 py-1 rounded bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400 flex items-center gap-1"><AlertTriangle size={10} />{f}</span>
+                      ))}
+                    </div>
+                  )}
+                  {result.bridges.bridges_used?.length === 0 && <div className="text-sm text-[var(--muted-fg)]">No bridge interactions detected</div>}
+                </div>
+              ) : <div className="text-sm text-[var(--muted-fg)]">Bridge analysis not available</div>}
+            </div>
+          )}
+
+          {/* Community Reports Tab */}
+          {activeTab === "community" && (
+            <div className="border-2 border-[var(--card-border)] rounded-xl shadow-[4px_4px_0px_0px_var(--shadow)] bg-[var(--card-bg)] overflow-hidden">
+              <div className="px-5 py-3 border-b border-[var(--muted)] bg-[var(--muted)] flex items-center gap-2">
+                <Flag size={16} /><h3 className="font-bold text-sm">Community Reports</h3>
+                {communityData && <span className="text-xs text-[var(--muted-fg)]">{communityData.total_reports} report(s)</span>}
+                {result.community_risk_modifier > 0 && <span className="text-xs text-red-500 font-bold ml-2">+{result.community_risk_modifier} risk modifier</span>}
+              </div>
+              <div className="p-4 space-y-4">
+                {/* Submit Report Form */}
+                <div className="bg-[var(--muted)] rounded-lg p-4 border border-[var(--card-border)]">
+                  <p className="text-xs font-bold mb-3 flex items-center gap-1"><MessageSquare size={12} />Submit a Report</p>
+                  <div className="flex gap-2 mb-2">
+                    <select value={reportCategory} onChange={(e) => setReportCategory(e.target.value)}
+                      className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-md px-3 py-1.5 text-xs focus:outline-none">
+                      {["scam", "phishing", "rug_pull", "honeypot", "impersonation", "wash_trading", "drainer", "fake_token", "ponzi", "other"].map((c) => (
+                        <option key={c} value={c}>{c.replace(/_/g, " ")}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <input type="text" value={reportDescription} onChange={(e) => setReportDescription(e.target.value)}
+                      placeholder="Describe the issue (optional)..."
+                      className="flex-1 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-md px-3 py-1.5 text-xs focus:outline-none placeholder:text-[var(--muted-fg)]" />
+                    <button onClick={submitCommunityReport} disabled={reportSubmitting}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--accent)] text-[var(--accent-fg)] rounded-md text-xs font-bold hover:opacity-80 disabled:opacity-40">
+                      {reportSubmitting ? <Loader2 size={12} className="animate-spin" /> : <SendHorizontal size={12} />}Submit
+                    </button>
+                  </div>
+                </div>
+
+                {/* Existing Reports */}
+                {communityLoading ? (
+                  <div className="p-4 flex items-center gap-2 text-sm text-[var(--muted-fg)]"><Loader2 size={14} className="animate-spin" />Loading reports...</div>
+                ) : communityData?.reports?.length > 0 ? (
+                  <div className="space-y-2">
+                    {communityData.reports.map((r: CommunityReport) => (
+                      <div key={r.id} className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg p-3 flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border ${
+                              r.status === "confirmed" ? "bg-red-50 dark:bg-red-950 border-red-300 dark:border-red-800 text-red-700 dark:text-red-400" :
+                              r.status === "dismissed" ? "bg-gray-100 dark:bg-zinc-900 border-gray-300 dark:border-zinc-700 text-gray-500" :
+                              "bg-amber-50 dark:bg-amber-950 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400"
+                            }`}>{r.category.replace(/_/g, " ")}</span>
+                            <span className="text-[10px] text-[var(--muted-fg)]">{r.date}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                              r.status === "confirmed" ? "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-400" :
+                              r.status === "dismissed" ? "bg-gray-100 dark:bg-zinc-800 text-gray-500" :
+                              "bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-400"
+                            }`}>{r.status}</span>
+                          </div>
+                          {r.description && <p className="text-xs text-[var(--muted-fg)] mt-1 truncate">{r.description}</p>}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => voteReport(r.id, "up")} className="p-1 hover:bg-green-50 dark:hover:bg-green-950 rounded transition-colors" title="Upvote">
+                            <ThumbsUp size={12} className="text-green-600 dark:text-green-400" />
+                          </button>
+                          <span className="text-xs font-mono min-w-[24px] text-center">{(r.upvotes || 0) - (r.downvotes || 0)}</span>
+                          <button onClick={() => voteReport(r.id, "down")} className="p-1 hover:bg-red-50 dark:hover:bg-red-950 rounded transition-colors" title="Downvote">
+                            <ThumbsDown size={12} className="text-red-600 dark:text-red-400" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="text-sm text-[var(--muted-fg)] text-center py-4">No community reports yet for this address</div>}
+              </div>
+            </div>
+          )}
+
           {/* Analysis Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
 
@@ -770,7 +1204,18 @@ export default function Home() {
               <div className="mt-3 flex gap-4 text-xs text-[var(--muted-fg)]">
                 <div className="flex items-center gap-1"><Zap size={10} /><span>ML: <strong className="text-[var(--foreground)]">{result.ml_raw_score}</strong></span></div>
                 <div className="flex items-center gap-1"><AlertTriangle size={10} /><span>Heuristic: <strong className="text-[var(--foreground)]">{result.heuristic_score}</strong></span></div>
+                {result.gnn?.gnn_score !== undefined && (
+                  <div className="flex items-center gap-1"><Brain size={10} /><span>GNN: <strong className="text-[var(--foreground)]">{result.gnn.gnn_score}</strong></span></div>
+                )}
               </div>
+              {result.temporal?.temporal_risk_score !== undefined && result.temporal.temporal_risk_score > 0 && (
+                <div className="mt-1 flex items-center gap-1 text-xs text-[var(--muted-fg)]">
+                  <TrendingUp size={10} />Temporal: <strong className="text-[var(--foreground)]">{result.temporal.temporal_risk_score}</strong>
+                  {result.mev?.mev_risk_score !== undefined && result.mev.mev_risk_score > 0 && (
+                    <span className="ml-2 flex items-center gap-1"><Bot size={10} />MEV: <strong className="text-[var(--foreground)]">{result.mev.mev_risk_score}</strong></span>
+                  )}
+                </div>
+              )}
               {result.sanctions?.risk_modifier > 0 && (
                 <div className="mt-2 flex items-center gap-1 text-xs text-red-600 dark:text-red-400">
                   <Ban size={10} />Sanctions modifier: +{result.sanctions.risk_modifier}

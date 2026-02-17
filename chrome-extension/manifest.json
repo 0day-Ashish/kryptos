@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Kryptos — Blockchain Risk Scanner",
+  "version": "1.0.0",
+  "description": "AI-powered scam detection for blockchain addresses. Hover over any address on Etherscan to see its risk score.",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "https://*.etherscan.io/*",
+    "https://*.bscscan.com/*",
+    "https://*.polygonscan.com/*",
+    "https://*.arbiscan.io/*",
+    "https://*.basescan.org/*",
+    "https://*.optimistic.etherscan.io/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.etherscan.io/*",
+        "https://*.bscscan.com/*",
+        "https://*.polygonscan.com/*",
+        "https://*.arbiscan.io/*",
+        "https://*.basescan.org/*",
+        "https://*.optimistic.etherscan.io/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

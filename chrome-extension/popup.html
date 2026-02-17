@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kryptos Scanner</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 360px;
+      min-height: 200px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #e5e5e5;
+      padding: 16px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #262626;
+    }
+    .header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #60a5fa, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header .version {
+      font-size: 11px;
+      color: #737373;
+      margin-left: auto;
+    }
+    .search-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .search-group input {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: #171717;
+      color: #e5e5e5;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-group input:focus {
+      border-color: #60a5fa;
+    }
+    .search-group input::placeholder {
+      color: #525252;
+    }
+    .search-group button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      white-space: nowrap;
+    }
+    .search-group button:hover { opacity: 0.9; }
+    .search-group button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Settings */
+    .settings {
+      margin-bottom: 16px;
+      padding: 12px;
+      background: #171717;
+      border-radius: 8px;
+      border: 1px solid #262626;
+    }
+    .settings label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #a3a3a3;
+      margin-bottom: 6px;
+    }
+    .settings label:last-child { margin-bottom: 0; }
+    .settings input[type="text"] {
+      padding: 6px 8px;
+      border: 1px solid #333;
+      border-radius: 4px;
+      background: #0a0a0a;
+      color: #e5e5e5;
+      font-size: 11px;
+      width: 200px;
+    }
+
+    /* Results */
+    .result {
+      padding: 14px;
+      background: #171717;
+      border-radius: 10px;
+      border: 1px solid #262626;
+    }
+    .result .address {
+      font-size: 11px;
+      color: #737373;
+      word-break: break-all;
+      margin-bottom: 10px;
+    }
+    .score-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .score-badge {
+      font-size: 28px;
+      font-weight: 800;
+      width: 60px;
+      text-align: center;
+    }
+    .score-badge.high { color: #ef4444; }
+    .score-badge.medium { color: #f59e0b; }
+    .score-badge.low { color: #22c55e; }
+
+    .score-meta {
+      flex: 1;
+    }
+    .score-meta .label {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .score-meta .sub {
+      font-size: 11px;
+      color: #737373;
+    }
+
+    .risk-bar {
+      height: 6px;
+      background: #262626;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .risk-bar .fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.6s ease;
+    }
+    .risk-bar .fill.high { background: #ef4444; }
+    .risk-bar .fill.medium { background: #f59e0b; }
+    .risk-bar .fill.low { background: #22c55e; }
+
+    .flags {
+      margin-top: 8px;
+    }
+    .flag {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #f59e0b;
+      margin-bottom: 4px;
+    }
+    .flag::before { content: "⚠"; }
+    .flag.high { color: #ef4444; }
+    .flag.high::before { content: "🚨"; }
+
+    .sanctioned-banner {
+      padding: 8px 12px;
+      background: #7f1d1d;
+      border: 1px solid #ef4444;
+      border-radius: 6px;
+      color: #fca5a5;
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 30px 0;
+      color: #737373;
+      font-size: 13px;
+    }
+    .loading .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #333;
+      border-top-color: #60a5fa;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error {
+      padding: 12px;
+      background: #1c1917;
+      border: 1px solid #78350f;
+      border-radius: 8px;
+      color: #fbbf24;
+      font-size: 12px;
+    }
+
+    .footer {
+      margin-top: 12px;
+      text-align: center;
+      font-size: 10px;
+      color: #525252;
+    }
+    .footer a {
+      color: #60a5fa;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🔍 Kryptos</h1>
+    <span class="version">v4.0</span>
+  </div>
+
+  <div class="search-group">
+    <input type="text" id="addressInput" placeholder="0x... or name.eth" />
+    <button id="scanBtn">Scan</button>
+  </div>
+
+  <div class="settings" id="settingsPanel" style="display:none;">
+    <label>
+      API URL:
+      <input type="text" id="apiUrl" value="http://localhost:8000" />
+    </label>
+    <label>
+      <input type="checkbox" id="autoScan" checked />
+      Auto-scan on Etherscan pages
+    </label>
+  </div>
+
+  <div id="resultArea"></div>
+
+  <div class="footer">
+    Powered by <a href="https://github.com/ashishranjandas/kryptos" target="_blank">Kryptos AI</a> •
+    <a href="#" id="toggleSettings">Settings</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 import os
 from collections import Counter
 from datetime import datetime
@@ -24,6 +25,15 @@ try:
     from backend.ml.similarity import find_similar_wallets
     from backend.ml.ens_resolver import resolve_input, is_ens_name
     from backend.ml.token_portfolio import get_token_portfolio
+    from backend.ml.gnn_scorer import gnn_scorer
+    from backend.ml.temporal_anomaly import detect_temporal_anomalies
+    from backend.ml.mev_detector import detect_mev_activity
+    from backend.ml.bridge_tracker import detect_bridge_usage
+    from backend.ml.community_reports import (
+        submit_report, get_reports, vote_report,
+        get_recent_reports, get_flagged_addresses, get_community_risk_modifier,
+    )
+    from backend.ml.batch_analyzer import analyze_batch, parse_csv_addresses
     from backend.report_pdf import generate_pdf_report
     from backend.on_chain import store_report_on_chain, get_report_from_chain
 except ModuleNotFoundError:
@@ -41,10 +51,45 @@ except ModuleNotFoundError:
     from ml.similarity import find_similar_wallets
     from ml.ens_resolver import resolve_input, is_ens_name
     from ml.token_portfolio import get_token_portfolio
+    from ml.gnn_scorer import gnn_scorer
+    from ml.temporal_anomaly import detect_temporal_anomalies
+    from ml.mev_detector import detect_mev_activity
+    from ml.bridge_tracker import detect_bridge_usage
+    from ml.community_reports import (
+        submit_report, get_reports, vote_report,
+        get_recent_reports, get_flagged_addresses, get_community_risk_modifier,
+    )
+    from ml.batch_analyzer import analyze_batch, parse_csv_addresses
     from report_pdf import generate_pdf_report
     from on_chain import store_report_on_chain, get_report_from_chain
 
-app = FastAPI(title="Kryptos API", version="2.0.0")
+
+# ── Pydantic models for request bodies ──────────────────────────────────────
+class ReportRequest(BaseModel):
+    address: str
+    category: str
+    description: str = ""
+    reporter_id: str = "anonymous"
+    evidence_urls: List[str] = []
+    chain_id: int = 1
+
+class VoteRequest(BaseModel):
+    report_id: str
+    vote: str  # "up" or "down"
+    voter_id: str = "anonymous"
+
+class BatchRequest(BaseModel):
+    addresses: List[str]
+    chain_id: int = 1
+    quick: bool = True
+
+class BatchCsvRequest(BaseModel):
+    csv_content: str
+    chain_id: int = 1
+    quick: bool = True
+
+
+app = FastAPI(title="Kryptos API", version="4.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -57,7 +102,7 @@ app.add_middleware(
 
 @app.get("/")
 def home():
-    return {"status": "Kryptos Backend Running", "version": "3.0.0", "chains": len(SUPPORTED_CHAINS)}
+    return {"status": "Kryptos Backend Running", "version": "4.0.0", "chains": len(SUPPORTED_CHAINS)}
 
 @app.get("/chains")
 def list_chains():
@@ -304,7 +349,54 @@ def analyze_wallet(address: str, chain_id: int = Query(default=1, description="C
     # Step 9: Fetch balance
     balance = fetch_balance(target_address, chain_id)
 
-    # Step 10: Store report on Base Sepolia
+    # Step 10: Advanced analysis — GNN, Temporal, MEV, Bridge
+    print("🧬 Step 10: Running advanced analysis...")
+    gnn_result = {}
+    temporal_result = {}
+    mev_result = {}
+    bridge_result = {}
+    community_risk = 0
+
+    try:
+        gnn_result = gnn_scorer.score(target_address, all_target_txns, neighbor_txns, chain_id)
+        print(f"   GNN score: {gnn_result.get('gnn_score', '?')}")
+    except Exception as e:
+        print(f"   GNN scoring error (non-fatal): {e}")
+
+    try:
+        temporal_result = detect_temporal_anomalies(target_address, normal_txns)
+        print(f"   Temporal risk: {temporal_result.get('temporal_risk_score', '?')}")
+    except Exception as e:
+        print(f"   Temporal analysis error (non-fatal): {e}")
+
+    try:
+        mev_result = detect_mev_activity(target_address, normal_txns)
+        if mev_result.get("is_mev_bot"):
+            flags.append(f"MEV bot detected (score: {mev_result['mev_risk_score']})")
+        print(f"   MEV score: {mev_result.get('mev_risk_score', '?')}")
+    except Exception as e:
+        print(f"   MEV detection error (non-fatal): {e}")
+
+    try:
+        bridge_result = detect_bridge_usage(target_address, normal_txns, token_txns)
+        if bridge_result.get("bridge_flags"):
+            for bf in bridge_result["bridge_flags"][:3]:
+                if bf not in flags:
+                    flags.append(bf)
+        print(f"   Bridge risk: {bridge_result.get('bridge_risk_score', '?')}")
+    except Exception as e:
+        print(f"   Bridge tracking error (non-fatal): {e}")
+
+    try:
+        community_risk = get_community_risk_modifier(target_address)
+        if community_risk > 0:
+            risk_score = min(100, risk_score + community_risk)
+            flags.append(f"Community flagged (+{community_risk} risk modifier)")
+            print(f"   Community modifier: +{community_risk}")
+    except Exception as e:
+        print(f"   Community risk error (non-fatal): {e}")
+
+    # Step 11: Store report on Base Sepolia
     on_chain = {}
     try:
         on_chain = store_report_on_chain(target_address, risk_score)
@@ -343,6 +435,11 @@ def analyze_wallet(address: str, chain_id: int = Query(default=1, description="C
             "nodes": nodes,
             "links": links
         },
+        "gnn": gnn_result,
+        "temporal": temporal_result,
+        "mev": mev_result,
+        "bridges": bridge_result,
+        "community_risk_modifier": community_risk,
         "on_chain": on_chain,
     }
 
@@ -384,7 +481,7 @@ def trace_funds(
     chain_id: int = Query(default=1),
     depth: int = Query(default=3, ge=1, le=5),
     min_value: float = Query(default=0.01),
-    direction: str = Query(default="out", regex="^(in|out)$"),
+    direction: str = Query(default="out", pattern="^(in|out)$"),
 ):
     """
     Trace fund flow from a wallet.
@@ -453,4 +550,121 @@ def download_pdf_report(address: str, chain_id: int = Query(default=1)):
         headers={
             "Content-Disposition": f'attachment; filename="kryptos-report-{short}.pdf"'
         },
+    )
+
+
+# ── Advanced Endpoints (v4.0) ───────────────────────────────────────────────
+
+@app.get("/gnn/{address}")
+def gnn_analysis(address: str, chain_id: int = Query(default=1)):
+    """Run Graph Neural Network scoring on a wallet's transaction sub-graph."""
+    target = address.lower()
+    normal_txns = fetch_transactions(target, chain_id, max_results=200)
+    internal_txns = fetch_internal_transactions(target, chain_id, max_results=100)
+    all_txns = normal_txns + internal_txns
+    if not all_txns:
+        return {"address": target, "gnn_score": 0, "error": "No transactions found"}
+    neighbors = discover_neighbors(target, all_txns, max_neighbors=8)
+    neighbor_txns = fetch_neighbor_transactions(neighbors, chain_id, max_per_neighbor=50)
+    result = gnn_scorer.score(target, all_txns, neighbor_txns, chain_id)
+    result["address"] = target
+    return result
+
+
+@app.get("/temporal/{address}")
+def temporal_analysis(address: str, chain_id: int = Query(default=1)):
+    """Detect temporal anomalies — spikes, regime shifts, burst patterns."""
+    target = address.lower()
+    txns = fetch_transactions(target, chain_id, max_results=500)
+    if not txns:
+        return {"address": target, "temporal_risk_score": 0, "error": "No transactions found"}
+    result = detect_temporal_anomalies(target, txns)
+    result["address"] = target
+    return result
+
+
+@app.get("/mev/{address}")
+def mev_analysis(address: str, chain_id: int = Query(default=1)):
+    """Detect MEV bot behaviour — sandwich attacks, front-running, arbitrage."""
+    target = address.lower()
+    txns = fetch_transactions(target, chain_id, max_results=500)
+    if not txns:
+        return {"address": target, "mev_risk_score": 0, "is_mev_bot": False, "error": "No transactions found"}
+    result = detect_mev_activity(target, txns)
+    result["address"] = target
+    return result
+
+
+@app.get("/bridges/{address}")
+def bridge_analysis(address: str, chain_id: int = Query(default=1)):
+    """Detect cross-chain bridge usage and obfuscation patterns."""
+    target = address.lower()
+    txns = fetch_transactions(target, chain_id, max_results=500)
+    token_txns = fetch_token_transfers(target, chain_id, max_results=200)
+    result = detect_bridge_usage(target, txns, token_txns)
+    result["address"] = target
+    return result
+
+
+# ── Community Reports ───────────────────────────────────────────────────────
+
+@app.post("/community/report")
+def create_community_report(req: ReportRequest):
+    """Submit a community scam report for an address."""
+    return submit_report(
+        address=req.address,
+        category=req.category,
+        description=req.description,
+        reporter_id=req.reporter_id,
+        evidence_urls=req.evidence_urls,
+        chain_id=req.chain_id,
+    )
+
+
+@app.get("/community/reports/{address}")
+def get_community_reports(address: str, limit: int = Query(default=50, ge=1, le=200)):
+    """Get all community reports for a specific address."""
+    return get_reports(address.lower(), limit)
+
+
+@app.post("/community/vote")
+def vote_on_report(req: VoteRequest):
+    """Upvote or downvote a community report."""
+    return vote_report(req.report_id, req.vote, req.voter_id)
+
+
+@app.get("/community/recent")
+def recent_community_reports(limit: int = Query(default=20, ge=1, le=100)):
+    """Get the most recent community reports across all addresses."""
+    return get_recent_reports(limit)
+
+
+@app.get("/community/flagged")
+def flagged_addresses(min_reports: int = Query(default=2, ge=1)):
+    """Get addresses with the most community reports."""
+    return get_flagged_addresses(min_reports)
+
+
+# ── Batch Analysis ──────────────────────────────────────────────────────────
+
+@app.post("/batch")
+def batch_analysis(req: BatchRequest):
+    """Analyze multiple addresses in one request (max 50)."""
+    return analyze_batch(
+        addresses=req.addresses,
+        chain_id=req.chain_id,
+        quick=req.quick,
+    )
+
+
+@app.post("/batch/csv")
+def batch_csv_analysis(req: BatchCsvRequest):
+    """Analyze addresses from CSV content."""
+    addresses = parse_csv_addresses(req.csv_content)
+    if not addresses:
+        return {"error": "No valid addresses found in CSV"}
+    return analyze_batch(
+        addresses=addresses,
+        chain_id=req.chain_id,
+        quick=req.quick,
     )
