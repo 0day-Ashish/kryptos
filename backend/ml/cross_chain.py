@@ -2,6 +2,7 @@
 cross_chain.py — Scan the same wallet address across all supported chains.
 Aggregates activity, balance, and risk info per chain.
 """
+from __future__ import annotations
 from typing import List, Dict
 
 try:

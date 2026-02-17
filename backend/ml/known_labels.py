@@ -3,6 +3,7 @@ Known address labels — major exchanges, bridges, DEX routers, and notable cont
 
 Used to enrich graph visualization and analysis output with human-readable tags.
 """
+from __future__ import annotations
 
 # Mapping of lowercase address → (label, category)
 # Categories: "exchange", "bridge", "dex", "defi", "nft", "mixer", "stablecoin", "other"

@@ -15,6 +15,7 @@ Identifies interactions with known bridge protocols:
 
 Analyses patterns to detect bridge-based fund obfuscation.
 """
+from __future__ import annotations
 
 from typing import Dict, List, Any
 from collections import defaultdict
