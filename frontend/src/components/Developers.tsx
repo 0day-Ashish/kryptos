@@ -7,7 +7,7 @@ import Image from "next/image";
 const developers = [
   {
     name: "Ashish Ranjan Das",
-    role: "Full Stack Developer",
+    role: "Full Stack Web3 Developer",
     image: "/assets/ashish.JPG", // Placeholder, will likely need actual images or placeholders
     github: "https://github.com/0day-Ashish",
     twitter: "https://twitter.com/ashishranjandas",
@@ -15,7 +15,7 @@ const developers = [
   },
   {
     name: "Aryadeep Roy",
-    role: "Frontend Developer",
+    role: "ML Engineer",
     image: "/assets/aryadeep.JPG", // Placeholder
     github: "https://github.com/subham12r",
     twitter: "https://twitter.com/subham12r",

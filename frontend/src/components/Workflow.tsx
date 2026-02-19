@@ -230,7 +230,7 @@ const Workflow = () => {
     <section ref={containerRef} className="py-24 px-8 relative text-white overflow-hidden">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-20">
-          <h2 className="text-4xl md:text-5xl font-[family-name:var(--font-nuqun)] mb-6">How Kryptos Works</h2>
+          <h2 className="text-4xl md:text-7xl font-[family-name:var(--font-nuqun)] mb-6">How Kryptos Works</h2>
           <p className="text-zinc-400 max-w-2xl mx-auto text-lg font-[family-name:var(--font-spacemono)]">
             A seamless journey from connection to protection.
           </p>
@@ -241,15 +241,15 @@ const Workflow = () => {
           <div className="absolute left-0 top-0 bottom-0 w-full hidden md:block pointer-events-none">
             <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 100">
               <path
-                d="M 50 0 C 50 0 90 20 60 50 C 30 80 50 100 50 100"
+                d="M 0 0 C 20 5 60 15 65 30 C 70 45 30 55 35 70 C 40 85 80 95 100 100"
                 stroke="#27272a"
-                strokeWidth="1"
+                strokeWidth="0.8"
                 fill="none"
               />
               <motion.path
-                d="M 50 0 C 50 0 90 20 60 50 C 30 80 50 100 50 100"
+                d="M 0 0 C 20 5 60 15 65 30 C 70 45 30 55 35 70 C 40 85 80 95 100 100"
                 stroke="#4ADE80"
-                strokeWidth="2"
+                strokeWidth="1.5"
                 strokeOpacity="0.3"
                 fill="none"
                 style={{ pathLength }}

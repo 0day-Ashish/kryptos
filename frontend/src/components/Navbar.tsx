@@ -31,7 +31,7 @@ export default function Navbar() {
       <nav className={`fixed top-0 w-full p-8 flex justify-between items-center z-50 transition-all duration-300 ${isScrolled ? 'bg-black/90 backdrop-blur-md py-4' : 'bg-transparent'}`}>
         <div className="text-4xl font-bold tracking-wider font-[family-name:var(--font-nuqun)]">KRYPTOS</div>
         <div className="hidden md:flex gap-12 items-center text-sm tracking-widest font-[family-name:var(--font-spacemono)] relative">
-          <Link href="/" className="hover:opacity-70 transition-opacity">[ HOME ]</Link>
+          <Link href="/" className="hover:opacity-70 transition-opacity">HOME</Link>
 
           {/* Services Link with Hover Area */}
           <div
@@ -43,7 +43,7 @@ export default function Navbar() {
           </div>
 
           <Link href="/analyze" className="hover:opacity-70 transition-opacity">ANALYZE</Link>
-          <Link href="/about" className="hover:opacity-70 transition-opacity">ABOUT US</Link>
+          <Link href="/about" className="hover:opacity-70 transition-opacity"> [ DOCS ]</Link>
         </div>
         {/* Right side – auth state */}
         <div className="hidden md:flex items-center gap-4">
