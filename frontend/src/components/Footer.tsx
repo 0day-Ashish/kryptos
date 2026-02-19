@@ -9,10 +9,10 @@ export default function Footer() {
   };
 
   return (
-    <footer className="bg-black text-white px-6 py-12 md:px-12 md:py-16 font-sans relative overflow-hidden rounded-t-[3rem]">
+    <footer className="text-white px-6 py-12 md:px-12 md:py-16 font-sans relative overflow-hidden">
       {/* Top Header */}
       <div className="flex justify-between items-start mb-16 md:mb-24 relative z-10">
-        <h2 className="text-4xl md:text-6xl lg:text-7xl tracking-wider leading-[0.9] uppercase max-w-2xl font-[family-name:var(--font-nuqun)]">
+        <h2 className="text-4xl md:text-6xl lg:text-7xl tracking-wider leading-[0.9] uppercase max-w-2xl font-[family-name:var(--font-nuqun)] font-bold">
           0DAY
           <br />
           <span className='italic'>Tech</span> Community

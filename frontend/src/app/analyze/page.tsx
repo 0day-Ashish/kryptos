@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Graph from "../components/Graph";
 import Timeline from "../components/Timeline";
+import Navbar from "@/components/Navbar";
 import {
   ShieldAlert, Search, Share2, Activity, CheckCircle, ChevronDown,
   AlertTriangle, Zap, Copy, Check, Download, Clock, Users, Wallet,
@@ -495,30 +496,12 @@ export default function Home() {
   );
 
   return (
-    <main className="flex flex-col items-center min-h-screen bg-[var(--background)] text-[var(--foreground)] p-10 font-sans transition-colors duration-300">
+    <main className="flex flex-col items-center min-h-screen text-[var(--foreground)] p-10 font-sans transition-colors duration-300">
+      < Navbar />
 
-      {/* DARK MODE TOGGLE */}
-      <button
-        onClick={toggleDark}
-        className="fixed top-4 right-4 z-50 p-2 rounded-lg border-2 border-[var(--card-border)] bg-[var(--card-bg)] shadow-[2px_2px_0px_0px_var(--shadow)] hover:shadow-none hover:translate-x-0.5 hover:translate-y-0.5 transition-all"
-        aria-label="Toggle dark mode"
-      >
-        {dark ? <Sun size={18} /> : <Moon size={18} />}
-      </button>
-
-      {/* HEADER */}
-      <div className="text-center mb-12">
-        <h1 className="text-6xl font-extrabold tracking-tighter mb-4 animate-in fade-in slide-in-from-top-4 duration-700">
-          kryptos
-        </h1>
-        <p className="text-[var(--muted-fg)] text-lg flex items-center justify-center gap-2">
-          <Activity size={18} />
-          Graph-Based Scam Detection & Fund Tracking
-        </p>
-      </div>
-
+      
       {/* INPUT SECTION */}
-      <div className="flex flex-col gap-3 mb-10 w-full max-w-2xl relative z-10">
+      <div className="flex flex-col gap-3 mt-30 mb-10 w-full max-w-2xl relative z-10">
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-[var(--muted-fg)] uppercase tracking-wider">Network</span>
           <div className="relative">
@@ -564,8 +547,8 @@ export default function Home() {
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-[10px] text-[var(--muted-fg)]">{h.chain_name}</span>
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${h.risk_score >= 75 ? "bg-black text-white dark:bg-white dark:text-black" :
-                          h.risk_score >= 40 ? "bg-gray-600 text-white" :
-                            "bg-gray-200 text-black dark:bg-zinc-700 dark:text-white"
+                        h.risk_score >= 40 ? "bg-gray-600 text-white" :
+                          "bg-gray-200 text-black dark:bg-zinc-700 dark:text-white"
                         }`}>{h.risk_score}</span>
                     </div>
                   </button>
@@ -619,8 +602,8 @@ export default function Home() {
                   </span>
                 )}
                 <span className={`text-xs font-mono px-2 py-1 rounded border flex items-center gap-1 ${riskScore >= 75 ? "bg-[var(--accent)] text-[var(--accent-fg)] border-[var(--card-border)]" :
-                    riskScore >= 40 ? "bg-gray-700 text-white border-gray-700" :
-                      "bg-gray-200 dark:bg-zinc-700 border-gray-400 dark:border-zinc-600"
+                  riskScore >= 40 ? "bg-gray-700 text-white border-gray-700" :
+                    "bg-gray-200 dark:bg-zinc-700 border-gray-400 dark:border-zinc-600"
                   }`}>
                   <ShieldAlert size={12} />
                   {riskScore >= 75 ? "THREAT DETECTED" : riskScore >= 40 ? "SUSPICIOUS" : "LOW RISK"}
@@ -752,10 +735,10 @@ export default function Home() {
                         <td className="px-4 py-3">
                           {cp.label ? (
                             <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${cp.category === "exchange" ? "bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300" :
-                                cp.category === "dex" ? "bg-purple-50 dark:bg-purple-950 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300" :
-                                  cp.category === "defi" ? "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300" :
-                                    cp.category === "mixer" ? "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300" :
-                                      "bg-[var(--muted)] border-[var(--card-border)] text-[var(--muted-fg)]"
+                              cp.category === "dex" ? "bg-purple-50 dark:bg-purple-950 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300" :
+                                cp.category === "defi" ? "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300" :
+                                  cp.category === "mixer" ? "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300" :
+                                    "bg-[var(--muted)] border-[var(--card-border)] text-[var(--muted-fg)]"
                               }`}>{cp.label}</span>
                           ) : <span className="text-xs text-[var(--muted-fg)]">Unknown</span>}
                         </td>
@@ -1148,13 +1131,13 @@ export default function Home() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase border ${r.status === "confirmed" ? "bg-red-50 dark:bg-red-950 border-red-300 dark:border-red-800 text-red-700 dark:text-red-400" :
-                                r.status === "dismissed" ? "bg-gray-100 dark:bg-zinc-900 border-gray-300 dark:border-zinc-700 text-gray-500" :
-                                  "bg-amber-50 dark:bg-amber-950 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400"
+                              r.status === "dismissed" ? "bg-gray-100 dark:bg-zinc-900 border-gray-300 dark:border-zinc-700 text-gray-500" :
+                                "bg-amber-50 dark:bg-amber-950 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400"
                               }`}>{r.category.replace(/_/g, " ")}</span>
                             <span className="text-[10px] text-[var(--muted-fg)]">{r.date}</span>
                             <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${r.status === "confirmed" ? "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-400" :
-                                r.status === "dismissed" ? "bg-gray-100 dark:bg-zinc-800 text-gray-500" :
-                                  "bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-400"
+                              r.status === "dismissed" ? "bg-gray-100 dark:bg-zinc-800 text-gray-500" :
+                                "bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-400"
                               }`}>{r.status}</span>
                           </div>
                           {r.description && <p className="text-xs text-[var(--muted-fg)] mt-1 truncate">{r.description}</p>}
@@ -1238,8 +1221,8 @@ export default function Home() {
                   <div className="flex flex-wrap gap-2">
                     {result.flags.map((flag, i) => (
                       <span key={i} className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border font-medium ${flag.toLowerCase().includes("sanctioned") ? "border-red-500 bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400" :
-                          flag.toLowerCase().includes("mixer") ? "border-red-300 bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400" :
-                            "border-[var(--card-border)] bg-[var(--muted)] text-[var(--muted-fg)]"
+                        flag.toLowerCase().includes("mixer") ? "border-red-300 bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400" :
+                          "border-[var(--card-border)] bg-[var(--muted)] text-[var(--muted-fg)]"
                         }`}>
                         <AlertTriangle size={10} />{flag}
                       </span>

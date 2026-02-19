@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Caveat } from "next/font/google";
 import localFont from 'next/font/local';
 import "./globals.css";
 import Footer from "@/components/Footer";
@@ -12,6 +12,11 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+const caveat = Caveat({
+  variable: "--font-caveat",
   subsets: ["latin"],
 });
 
@@ -38,7 +43,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${nuqun.variable} ${spacemono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${caveat.variable} ${nuqun.variable} ${spacemono.variable} antialiased`}
       >
         <LenisScroll>
           {children}
