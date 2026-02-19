@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Wallet, LogOut } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 const services = [
   { title: "Wallet Analyzer", href: "/analyze" },
@@ -13,6 +15,7 @@ const services = [
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isServicesHovered, setIsServicesHovered] = useState(false);
+  const { address, isAuthenticated, signIn, signOut, isConnecting } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -36,15 +39,38 @@ export default function Navbar() {
             onMouseEnter={() => setIsServicesHovered(true)}
             onMouseLeave={() => setIsServicesHovered(false)}
           >
-            <Link href="/" className="hover:opacity-70 transition-opacity cursor-pointer">SERVICES</Link>
+            <Link href="/" className="hover:opacity-70 transition-opacity cursor-pointer tracking-wider">SERVICES</Link>
           </div>
 
           <Link href="/analyze" className="hover:opacity-70 transition-opacity">ANALYZE</Link>
           <Link href="/about" className="hover:opacity-70 transition-opacity">ABOUT US</Link>
         </div>
-        <Link href="/contact" className="hidden md:block text-sm tracking-widest hover:opacity-70 transition-opacity font-[family-name:var(--font-spacemono)]">
-          CONTACT
-        </Link>
+        {/* Right side – auth state */}
+        <div className="hidden md:flex items-center gap-4">
+          {isAuthenticated && address ? (
+            <>
+              <div className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-[#4ADE80]/30 rounded-full text-sm font-[family-name:var(--font-spacemono)]">
+                <Wallet className="w-3.5 h-3.5 text-[#4ADE80]" />
+                <span className="text-[#4ADE80]">{address.slice(0, 6)}...{address.slice(-4)}</span>
+              </div>
+              <button
+                onClick={signOut}
+                className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                title="Disconnect"
+              >
+                <LogOut className="w-4 h-4 text-zinc-400 hover:text-white" />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => signIn()}
+              disabled={isConnecting}
+              className="text-sm tracking-widest hover:opacity-70 transition-opacity font-[family-name:var(--font-spacemono)] disabled:opacity-50"
+            >
+              {isConnecting ? "CONNECTING..." : "CONNECT"}
+            </button>
+          )}
+        </div>
       </nav>
 
       {/* Full width mega menu */}

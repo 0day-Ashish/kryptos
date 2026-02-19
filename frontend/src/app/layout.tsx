@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Caveat } from "next/font/google";
 import localFont from 'next/font/local';
 import "./globals.css";
-import Footer from "@/components/Footer";
-import LenisScroll from "@/components/LenisScroll";
+import ClientProviders from "@/components/ClientProviders";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -45,10 +44,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${caveat.variable} ${nuqun.variable} ${spacemono.variable} antialiased`}
       >
-        <LenisScroll>
+        <ClientProviders>
           {children}
-          <Footer />
-        </LenisScroll>
+        </ClientProviders>
       </body>
     </html>
   );

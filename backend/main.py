@@ -10,6 +10,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ── Database + Auth ──────────────────────────────────────────────────────────
+try:
+    from backend.db.models import init_db
+    from backend.auth.routes import router as auth_router
+    from backend.auth.watchlist_routes import router as watchlist_router
+except ModuleNotFoundError:
+    from db.models import init_db
+    from auth.routes import router as auth_router
+    from auth.watchlist_routes import router as watchlist_router
+
 try:
     from backend.ml.config import CHAIN_ID, ETHERSCAN_API_KEY, SUPPORTED_CHAINS, get_chain_by_id
     from backend.ml.fetcher import (
@@ -36,6 +46,7 @@ try:
     from backend.ml.batch_analyzer import analyze_batch, parse_csv_addresses
     from backend.ml.token_scanner import scan_token
     from backend.ml.contract_auditor import audit_contract
+    from backend.ml.watchlist import quick_score
     from backend.report_pdf import generate_pdf_report
     from backend.on_chain import store_report_on_chain, get_report_from_chain
 except ModuleNotFoundError:
@@ -64,6 +75,7 @@ except ModuleNotFoundError:
     from ml.batch_analyzer import analyze_batch, parse_csv_addresses
     from ml.token_scanner import scan_token
     from ml.contract_auditor import audit_contract
+    from ml.watchlist import quick_score
     from report_pdf import generate_pdf_report
     from on_chain import store_report_on_chain, get_report_from_chain
 
@@ -102,6 +114,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Initialize DB + register auth/watchlist routers ──────────────────────────
+init_db()
+app.include_router(auth_router)
+app.include_router(watchlist_router)
 
 
 @app.get("/")
@@ -698,3 +715,16 @@ def batch_csv_analysis(req: BatchCsvRequest):
         chain_id=req.chain_id,
         quick=req.quick,
     )
+
+
+# ── Wallet Watchlist ─────────────────────────────────────────────────────────
+
+@app.get("/watchlist/quick-score/{address}")
+def watchlist_quick_score(address: str, chain_id: int = Query(default=1, description="Chain ID")):
+    """Lightweight wallet risk check for watchlist monitoring."""
+    try:
+        return quick_score(address.lower(), chain_id)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e), "address": address.lower()}

@@ -8,3 +8,4 @@ backend/ml/config.py
 backend/.env
 
 backend/.cache
+.venv
