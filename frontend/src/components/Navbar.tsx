@@ -28,7 +28,7 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className={`fixed top-0 w-full p-8 flex justify-between items-center z-50 transition-all duration-300 ${isScrolled ? 'bg-black/90 backdrop-blur-md py-4' : 'bg-transparent'}`}>
+      <nav className={`fixed z-50 flex justify-between items-center transition-all duration-500 ${isScrolled ? 'top-4 left-6 right-6 px-8 py-4 bg-white/[0.03] backdrop-blur-2xl border border-white/[0.06] rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.3)]' : 'top-0 left-0 right-0 p-8 bg-transparent'}`}>
         <div className="text-4xl font-bold tracking-wider font-[family-name:var(--font-nuqun)]">KRYPTOS</div>
         <div className="hidden md:flex gap-12 items-center text-sm tracking-widest font-[family-name:var(--font-spacemono)] relative">
           <Link href="/" className="hover:opacity-70 transition-opacity">HOME</Link>
@@ -43,7 +43,7 @@ export default function Navbar() {
           </div>
 
           <Link href="/analyze" className="hover:opacity-70 transition-opacity">ANALYZE</Link>
-          <Link href="/about" className="hover:opacity-70 transition-opacity"> [ DOCS ]</Link>
+          <Link href="/docs" className="hover:opacity-70 transition-opacity"> [ DOCS ]</Link>
         </div>
         {/* Right side – auth state */}
         <div className="hidden md:flex items-center gap-4">

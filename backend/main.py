@@ -1,8 +1,11 @@
-from fastapi import FastAPI, Query, Body
+from fastapi import FastAPI, Query, Body, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import os
+import json
+import secrets
+import string
 from collections import Counter
 from datetime import datetime
 from typing import List, Optional
@@ -12,11 +15,11 @@ load_dotenv()
 
 # ── Database + Auth ──────────────────────────────────────────────────────────
 try:
-    from backend.db.models import init_db
+    from backend.db.models import init_db, get_db, SharedReport
     from backend.auth.routes import router as auth_router
     from backend.auth.watchlist_routes import router as watchlist_router
 except ModuleNotFoundError:
-    from db.models import init_db
+    from db.models import init_db, get_db, SharedReport
     from auth.routes import router as auth_router
     from auth.watchlist_routes import router as watchlist_router
 
@@ -103,6 +106,16 @@ class BatchCsvRequest(BaseModel):
     csv_content: str
     chain_id: int = 1
     quick: bool = True
+
+class ShareRequest(BaseModel):
+    """Request body for creating a shareable report link."""
+    data: dict  # Full analysis result JSON
+
+
+def _generate_report_id(length: int = 10) -> str:
+    """Generate a URL-safe short ID for shared reports."""
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 app = FastAPI(title="Kryptos API", version="4.0.0")
@@ -728,3 +741,86 @@ def watchlist_quick_score(address: str, chain_id: int = Query(default=1, descrip
         import traceback
         traceback.print_exc()
         return {"error": str(e), "address": address.lower()}
+
+
+# ── Shareable Report Links ──────────────────────────────────────────────────
+
+@app.post("/share")
+def create_shared_report(req: ShareRequest, db=Depends(get_db)):
+    """
+    Save an analysis result and return a short shareable link ID.
+    The frontend sends the full analysis JSON after running /analyze.
+    """
+    data = req.data
+    address = data.get("address", "unknown")
+    chain_id = data.get("chain", {}).get("id", 1) if isinstance(data.get("chain"), dict) else 1
+    chain_name = data.get("chain", {}).get("name", "Ethereum") if isinstance(data.get("chain"), dict) else "Ethereum"
+    risk_score = data.get("risk_score", 0)
+    risk_label = data.get("risk_label", "Unknown")
+
+    report_id = _generate_report_id()
+    # Ensure uniqueness (extremely unlikely collision)
+    while db.query(SharedReport).filter(SharedReport.id == report_id).first():
+        report_id = _generate_report_id()
+
+    report = SharedReport(
+        id=report_id,
+        address=address,
+        chain_id=chain_id,
+        chain_name=chain_name,
+        risk_score=risk_score,
+        risk_label=risk_label,
+        data=json.dumps(data),
+    )
+    db.add(report)
+    db.commit()
+
+    return {
+        "report_id": report_id,
+        "url": f"/report/{report_id}",
+        "address": address,
+        "risk_score": risk_score,
+        "risk_label": risk_label,
+    }
+
+
+@app.get("/shared/{report_id}")
+def get_shared_report(report_id: str, db=Depends(get_db)):
+    """Retrieve a shared report by its short ID."""
+    report = db.query(SharedReport).filter(SharedReport.id == report_id).first()
+    if not report:
+        return {"error": "Report not found", "report_id": report_id}
+
+    # Increment view count
+    report.views = (report.views or 0) + 1
+    db.commit()
+
+    return {
+        "report_id": report.id,
+        "address": report.address,
+        "chain_id": report.chain_id,
+        "chain_name": report.chain_name,
+        "risk_score": report.risk_score,
+        "risk_label": report.risk_label,
+        "created_at": report.created_at.isoformat() if report.created_at else None,
+        "views": report.views,
+        "data": json.loads(report.data),
+    }
+
+
+@app.get("/shared/{report_id}/meta")
+def get_shared_report_meta(report_id: str, db=Depends(get_db)):
+    """Lightweight metadata for OG tags / link previews (no full data)."""
+    report = db.query(SharedReport).filter(SharedReport.id == report_id).first()
+    if not report:
+        return {"error": "Report not found", "report_id": report_id}
+
+    return {
+        "report_id": report.id,
+        "address": report.address,
+        "chain_name": report.chain_name,
+        "risk_score": report.risk_score,
+        "risk_label": report.risk_label,
+        "created_at": report.created_at.isoformat() if report.created_at else None,
+        "views": report.views,
+    }

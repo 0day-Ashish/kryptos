@@ -64,6 +64,21 @@ class WatchlistItem(Base):
     owner = relationship("User", back_populates="watchlist")
 
 
+class SharedReport(Base):
+    """Cached analysis results for shareable report links."""
+    __tablename__ = "shared_reports"
+
+    id = Column(String(12), primary_key=True, index=True)  # nanoid-style short ID
+    address = Column(String(42), nullable=False, index=True)
+    chain_id = Column(Integer, default=1)
+    chain_name = Column(String(64), default="Ethereum")
+    risk_score = Column(Float, nullable=False)
+    risk_label = Column(String(32), nullable=False)
+    data = Column(Text, nullable=False)  # Full JSON analysis result
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    views = Column(Integer, default=0)
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def init_db():

@@ -6,7 +6,7 @@ import Navbar from "@/components/Navbar";
 import {
   ShieldAlert, Search, Share2, Activity, CheckCircle, ChevronDown,
   AlertTriangle, Zap, Copy, Check, Download, Clock, Users, Wallet,
-  ArrowUpRight, ArrowDownLeft, Loader2, FileText,
+  ArrowUpRight, ArrowDownLeft, Loader2, FileText, Link2,
   Globe, Ban, Fingerprint, GitBranch, Brain, TrendingUp, Bot,
   BarChart3, Flag, MessageSquare, SendHorizontal, ThumbsUp, ThumbsDown,
   Layers, ExternalLink,
@@ -272,6 +272,11 @@ export default function Home() {
   const [batchResult, setBatchResult] = useState<any>(null);
   const [batchLoading, setBatchLoading] = useState(false);
 
+  // Share link state
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
+
   useEffect(() => {
     fetch("http://127.0.0.1:8000/chains")
       .then((r) => r.json())
@@ -312,6 +317,8 @@ export default function Home() {
     setSimilarData(null);
     setCommunityData(null);
     setBatchResult(null);
+    setShareUrl(null);
+    setShareCopied(false);
     fetch(`http://127.0.0.1:8000/analyze/${address}?chain_id=${selectedChain}`)
       .then((r) => r.json())
       .then((data: AnalysisResult) => {
@@ -456,6 +463,31 @@ export default function Home() {
     a.download = `kryptos-report-${target.slice(0, 10)}-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const shareReport = async () => {
+    if (!result || shareLoading) return;
+    setShareLoading(true);
+    setShareUrl(null);
+    try {
+      const res = await fetch("http://127.0.0.1:8000/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: result }),
+      });
+      const data = await res.json();
+      if (data.report_id) {
+        const fullUrl = `${window.location.origin}/report/${data.report_id}`;
+        setShareUrl(fullUrl);
+        navigator.clipboard.writeText(fullUrl);
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 3000);
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setShareLoading(false);
+    }
   };
 
   const riskScore = result?.risk_score ?? 0;
@@ -669,15 +701,37 @@ export default function Home() {
           </div>
 
           {/* Action buttons */}
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex gap-3 flex-wrap items-center">
             <button onClick={downloadPdf} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 hover:bg-white/10 transition font-[family-name:var(--font-spacemono)] text-sm">
               <FileText size={14} />PDF Report
             </button>
             <button onClick={exportReport} className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 hover:bg-white/10 transition font-[family-name:var(--font-spacemono)] text-sm">
               <Download size={14} />Export JSON
             </button>
+            <button onClick={shareReport} disabled={shareLoading}
+              className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 hover:bg-white/10 transition font-[family-name:var(--font-spacemono)] text-sm disabled:opacity-50"
+            >
+              {shareLoading ? (
+                <><Loader2 size={14} className="animate-spin" />Generating...</>
+              ) : shareCopied ? (
+                <><Check size={14} className="text-[#4ADE80]" />Link Copied!</>
+              ) : (
+                <><Link2 size={14} />Share Report</>
+              )}
+            </button>
+            {shareUrl && (
+              <div className="flex items-center gap-2 bg-[#4ADE80]/10 border border-[#4ADE80]/20 rounded-xl px-3 py-2 text-xs font-[family-name:var(--font-spacemono)]">
+                <Link2 size={12} className="text-[#4ADE80] shrink-0" />
+                <a href={shareUrl} target="_blank" rel="noopener noreferrer" className="text-[#4ADE80] hover:underline truncate max-w-[260px]">{shareUrl}</a>
+                <button onClick={() => { navigator.clipboard.writeText(shareUrl); setShareCopied(true); setTimeout(() => setShareCopied(false), 2000); }}
+                  className="text-zinc-400 hover:text-white transition ml-1"
+                >
+                  <Copy size={12} />
+                </button>
+              </div>
+            )}
             <button onClick={handleVerify} disabled={onChainLoading}
-              className="flex items-center gap-2 bg-[#4ADE80] text-black font-bold rounded-xl px-5 py-2.5 hover:bg-[#22c55e] transition disabled:opacity-50 font-[family-name:var(--font-spacemono)] text-sm"
+              className="flex items-center gap-2 bg-[#4ADE80] text-black font-bold rounded-xl px-5 py-2.5 hover:bg-[#22c55e] transition disabled:opacity-50 font-[family-name:var(--font-spacemono)] text-sm ml-auto"
             >
               <Share2 size={14} />{onChainLoading ? "Loading..." : "Verify on Base"}
             </button>
