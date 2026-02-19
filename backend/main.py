@@ -34,6 +34,8 @@ try:
         get_recent_reports, get_flagged_addresses, get_community_risk_modifier,
     )
     from backend.ml.batch_analyzer import analyze_batch, parse_csv_addresses
+    from backend.ml.token_scanner import scan_token
+    from backend.ml.contract_auditor import audit_contract
     from backend.report_pdf import generate_pdf_report
     from backend.on_chain import store_report_on_chain, get_report_from_chain
 except ModuleNotFoundError:
@@ -60,6 +62,8 @@ except ModuleNotFoundError:
         get_recent_reports, get_flagged_addresses, get_community_risk_modifier,
     )
     from ml.batch_analyzer import analyze_batch, parse_csv_addresses
+    from ml.token_scanner import scan_token
+    from ml.contract_auditor import audit_contract
     from report_pdf import generate_pdf_report
     from on_chain import store_report_on_chain, get_report_from_chain
 
@@ -655,6 +659,32 @@ def batch_analysis(req: BatchRequest):
         chain_id=req.chain_id,
         quick=req.quick,
     )
+
+
+# ── Token Risk Scanner ───────────────────────────────────────────────────────
+
+@app.get("/token-scan/{address}")
+def token_risk_scan(address: str, chain_id: int = Query(default=1, description="Chain ID")):
+    """Scan an ERC-20 token contract for risk signals."""
+    try:
+        return scan_token(address.lower(), chain_id)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e), "contract_address": address.lower()}
+
+
+# ── Contract Auditor ─────────────────────────────────────────────────────────
+
+@app.get("/contract-audit/{address}")
+def contract_security_audit(address: str, chain_id: int = Query(default=1, description="Chain ID")):
+    """Run a static security audit on a smart contract."""
+    try:
+        return audit_contract(address.lower(), chain_id)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e), "contract_address": address.lower()}
 
 
 @app.post("/batch/csv")

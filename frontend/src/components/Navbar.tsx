@@ -3,12 +3,11 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const services = [
-  { title: "Wallet Analyzer", href: "/services/audio-visual" },
-  { title: "Lighting Design", href: "/services/lighting" },
-  { title: "Stage Production", href: "/services/staging" },
-  { title: "Event Management", href: "/services/event-management" },
-  { title: "Live Streaming", href: "/services/streaming" },
-  { title: "Content Creation", href: "/services/content" },
+  { title: "Wallet Analyzer", href: "/analyze" },
+  { title: "Token Risk Scanner", href: "/token-scan" },
+  { title: "Contract Auditor", href: "/contract-audit" },
+  { title: "Wallet Watchlist", href: "/watchlist" },
+  { title: "Bulk Screening", href: "/bulk" },
 ];
 
 export default function Navbar() {
