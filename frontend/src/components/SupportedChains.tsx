@@ -39,7 +39,7 @@ const SupportedChains = () => {
             <div
               key={index}
               className={`relative grayscale brightness-200 hover:grayscale-0 hover:brightness-100 transition-all duration-370 opacity-50 hover:opacity-100 hover:scale-110 object-contain mx-8
-                ${chain.name === 'Ethereum' ? 'w-16 h-16 md:w-20 md:h-20' : 'w-20 h-20 md:w-28 md:h-28'}
+                ${chain.name === 'Ethereum' ? 'w-16 h-16 md:w-20 md:h-20' : chain.name === 'Arbitrum' || chain.name === 'Avalanche' ? 'w-28 h-28 md:w-36 md:h-36' : 'w-20 h-20 md:w-28 md:h-28'}
               `}
             >
               <Image
@@ -55,7 +55,7 @@ const SupportedChains = () => {
             <div
               key={`duplicate-${index}`}
               className={`relative grayscale brightness-200 hover:grayscale-0 hover:brightness-100 transition-all duration-300 opacity-50 hover:opacity-100 hover:scale-110 object-contain mx-8
-                ${chain.name === 'Ethereum' ? 'w-16 h-16 md:w-20 md:h-20' : 'w-20 h-20 md:w-28 md:h-28'}
+                ${chain.name === 'Ethereum' ? 'w-16 h-16 md:w-20 md:h-20' : chain.name === 'Arbitrum' || chain.name === 'Avalanche' ? 'w-28 h-28 md:w-36 md:h-36' : 'w-20 h-20 md:w-28 md:h-28'}
               `}
             >
               <Image
