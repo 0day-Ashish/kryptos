@@ -9,3 +9,4 @@ backend/.env
 
 backend/.cache
 .venv
+backend/venv
