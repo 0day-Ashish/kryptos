@@ -10,51 +10,71 @@ const steps = [
     description: "Securely link your wallet or digital identity to start the analysis process.",
     icon: <Wallet className="w-8 h-8 text-black" />,
     svg: (
-      <svg viewBox="0 0 100 100" className="w-full h-full">
+      <svg viewBox="0 0 100 100" className="w-full h-full overflow-hidden">
         <defs>
-          <linearGradient id="conn-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#4ADE80" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.8" />
+          <linearGradient id="conn-grad-new" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#4ADE80" />
+            <stop offset="100%" stopColor="#3B82F6" />
           </linearGradient>
+          <radialGradient id="core-glow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#4ADE80" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#4ADE80" stopOpacity="0" />
+          </radialGradient>
+          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="2" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
         </defs>
 
-        {/* Outer Ring */}
-        <motion.circle
-          cx="50" cy="50" r="35"
-          stroke="#374151" strokeWidth="1" fill="none"
-          strokeDasharray="4 4"
+        {/* Ambient Glow */}
+        <motion.circle cx="50" cy="50" r="25" fill="url(#core-glow)"
+          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
+          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        />
+
+        {/* Outer orbital rings */}
+        <motion.circle cx="50" cy="50" r="38" stroke="#374151" strokeWidth="0.5" fill="none"
+          strokeDasharray="4 6"
           animate={{ rotate: 360 }}
+          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+          style={{ originX: "50px", originY: "50px" }}
+        />
+        <motion.circle cx="50" cy="50" r="32" stroke="#4ADE80" strokeWidth="1" fill="none" opacity="0.3"
+          strokeDasharray="20 10 5 10"
+          animate={{ rotate: -360 }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          style={{ originX: "50px", originY: "50px" }}
         />
 
-        {/* Inner Tech Circle */}
-        <motion.path
-          d="M50,25 A25,25 0 0,1 75,50 M50,75 A25,25 0 0,1 25,50"
-          stroke="url(#conn-grad)" strokeWidth="2" fill="none" strokeLinecap="round"
-          initial={{ pathLength: 0 }}
-          whileInView={{ pathLength: 1, rotate: [0, 180] }}
-          transition={{ duration: 2, ease: "easeInOut" }}
+        {/* Central Core */}
+        <motion.circle cx="50" cy="50" r="12" fill="#18181B" stroke="url(#conn-grad-new)" strokeWidth="2" filter="url(#glow)" />
+        <motion.circle cx="50" cy="50" r="6" fill="#4ADE80"
+          animate={{ scale: [0.8, 1.1, 0.8], opacity: [0.6, 1, 0.6] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         />
 
-        {/* Center Nodes */}
-        <motion.circle cx="50" cy="50" r="8" fill="#1F2937" stroke="url(#conn-grad)" strokeWidth="2" />
-        <motion.circle
-          cx="50" cy="50" r="4" fill="#4ADE80"
-          animate={{ opacity: [0.5, 1, 0.5] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
-        />
-
-        {/* Connecting Beams */}
-        {[0, 90, 180, 270].map((deg, i) => (
-          <motion.line
-            key={i}
-            x1="50" y1="50" x2="50" y2="20"
-            stroke="url(#conn-grad)" strokeWidth="1" strokeLinecap="round"
-            transform={`rotate(${deg} 50 50)`}
-            initial={{ opacity: 0, pathLength: 0 }}
-            whileInView={{ opacity: [0, 1, 0], pathLength: [0, 1] }}
-            transition={{ duration: 1.5, delay: i * 0.2, repeat: Infinity }}
-          />
+        {/* Floating Peripheral Nodes */}
+        {[
+          { cx: 50, cy: 15, delay: 0 },
+          { cx: 85, cy: 50, delay: 0.5 },
+          { cx: 50, cy: 85, delay: 1 },
+          { cx: 15, cy: 50, delay: 1.5 }
+        ].map((node, i) => (
+          <g key={i}>
+            <motion.line
+              x1="50" y1="50" x2={node.cx} y2={node.cy}
+              stroke="url(#conn-grad-new)" strokeWidth="1.5"
+              strokeDasharray="4 4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0.2, 0.8, 0.2] }}
+              transition={{ duration: 2, delay: node.delay, repeat: Infinity }}
+            />
+            <motion.circle cx={node.cx} cy={node.cy} r="4" fill="#18181B" stroke="#4ADE80" strokeWidth="1.5" />
+            <motion.circle cx={node.cx} cy={node.cy} r="2" fill="#4ADE80"
+              animate={{ scale: [0, 1.5, 0], opacity: [0, 1, 0] }}
+              transition={{ duration: 2, delay: node.delay, repeat: Infinity }}
+            />
+          </g>
         ))}
       </svg>
     )
@@ -64,59 +84,64 @@ const steps = [
     description: "Our AI-driven engine scans thousands of data points across multiple blockchains.",
     icon: <BrainCircuit className="w-8 h-8 text-black" />,
     svg: (
-      <svg viewBox="0 0 100 100" className="w-full h-full">
+      <svg viewBox="0 0 100 100" className="w-full h-full overflow-hidden">
         <defs>
-          <radialGradient id="scan-grad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#4ADE80" stopOpacity="0.2" />
-            <stop offset="100%" stopColor="#4ADE80" stopOpacity="0" />
-          </radialGradient>
+          <linearGradient id="radar-scan" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#4ADE80" stopOpacity="0" />
+            <stop offset="100%" stopColor="#4ADE80" stopOpacity="0.4" />
+          </linearGradient>
+          <linearGradient id="grid-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#374151" stopOpacity="0.1" />
+            <stop offset="50%" stopColor="#374151" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#374151" stopOpacity="0.1" />
+          </linearGradient>
+          <clipPath id="circle-clip">
+            <circle cx="50" cy="50" r="40" />
+          </clipPath>
         </defs>
 
-        {/* Hexagon Grid Background */}
-        <path
-          d="M50,20 L76,35 V65 L50,80 L24,65 V35 Z"
-          stroke="#374151"
-          strokeWidth="1"
-          fill="none"
-          opacity="0.3"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-        <path
-          d="M50,30 L67,40 V60 L50,70 L33,60 V40 Z"
-          stroke="#374151"
-          strokeWidth="1"
-          fill="none"
-          opacity="0.5"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
+        {/* Global Grid */}
+        <path d="M10,50 L90,50 M50,10 L50,90 M20,20 L80,80 M20,80 L80,20" stroke="url(#grid-grad)" strokeWidth="0.5" fill="none" />
+        <circle cx="50" cy="50" r="40" stroke="#27272A" strokeWidth="1" fill="none" />
+        <circle cx="50" cy="50" r="30" stroke="#27272A" strokeWidth="1" fill="none" strokeDasharray="2 4" />
+        <circle cx="50" cy="50" r="20" stroke="#27272A" strokeWidth="1" fill="none" />
 
-        {/* Scanning Beam */}
-        <motion.path
-          d="M50,50 L50,10 A40,40 0 0,1 90,50 L50,50"
-          fill="url(#scan-grad)"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-          style={{ originX: "50px", originY: "50px" }}
-        />
+        {/* Radar Scanner Area */}
+        <g clipPath="url(#circle-clip)">
+          {/* Translate origin to (50,50) first, then rotate around that point */}
+          <g transform="translate(50,50)">
+            <motion.g
+              animate={{ rotate: 360 }}
+              transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+              style={{ transformOrigin: "0px 0px" }}
+            >
+              {/* Sweep drawn around (0,0) which is now the circle center */}
+              <path d="M0,0 L0,-40 A40,40 0 0,1 40,0 Z" fill="url(#radar-scan)" />
+              <line x1="0" y1="0" x2="0" y2="-40" stroke="#4ADE80" strokeWidth="1.5" strokeLinecap="round" />
+            </motion.g>
+          </g>
+        </g>
 
-        {/* Blip Points */}
-        <motion.circle cx="65" cy="35" r="2" fill="#F0B90B"
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: [0, 1, 0], scale: [0, 1.5, 0] }}
-          transition={{ duration: 2, repeat: Infinity, delay: 0.5 }}
-        />
-        <motion.circle cx="35" cy="65" r="2" fill="#627EEA"
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: [0, 1, 0], scale: [0, 1.5, 0] }}
-          transition={{ duration: 2.5, repeat: Infinity, delay: 1.2 }}
-        />
-        <motion.circle cx="70" cy="60" r="2" fill="#EF4444"
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: [0, 1, 0], scale: [0, 1.5, 0] }}
-          transition={{ duration: 1.8, repeat: Infinity, delay: 2 }}
-        />
+        {/* Detected Threats / Nodes */}
+        {[
+          { x: 70, y: 35, color: "#EF4444", delay: 0.5 },
+          { x: 30, y: 65, color: "#F59E0B", delay: 2.5 },
+          { x: 60, y: 70, color: "#3B82F6", delay: 1.5 },
+          { x: 25, y: 40, color: "#4ADE80", delay: 3.2 }
+        ].map((node, i) => (
+          <g key={i}>
+            <motion.circle cx={node.x} cy={node.y} r="2" fill={node.color}
+              initial={{ opacity: 0, scale: 0 }}
+              animate={{ opacity: [0, 1, 0], scale: [0, 1.5, 0] }}
+              transition={{ duration: 4, delay: node.delay, repeat: Infinity }}
+            />
+            <motion.circle cx={node.x} cy={node.y} r="6" stroke={node.color} strokeWidth="1" fill="none"
+              initial={{ opacity: 0, scale: 0 }}
+              animate={{ opacity: [0, 0.5, 0], scale: [0, 2, 3] }}
+              transition={{ duration: 4, delay: node.delay, repeat: Infinity }}
+            />
+          </g>
+        ))}
       </svg>
     )
   },
@@ -125,38 +150,69 @@ const steps = [
     description: "Identify potential vulnerabilities, rug pulls, and security threats in real-time.",
     icon: <Activity className="w-8 h-8 text-black" />,
     svg: (
-      <svg viewBox="0 0 100 100" className="w-full h-full">
-        {/* Data Columns */}
-        {[20, 35, 50, 65, 80].map((x, i) => (
-          <motion.rect
-            key={i}
-            x={x} y="80" width="8" height="0"
-            fill={i === 2 ? "#EF4444" : "#374151"}
-            rx="1"
-            initial={{ height: 0, y: 80 }}
-            whileInView={{
-              height: [10, 30 + Math.random() * 40, 20],
-              y: [80, 80 - (30 + Math.random() * 40), 60]
-            }}
-            transition={{ duration: 2, repeat: Infinity, repeatType: "reverse", delay: i * 0.1 }}
-          />
+      <svg viewBox="0 0 100 100" className="w-full h-full overflow-hidden">
+        <defs>
+          <linearGradient id="chart-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#EF4444" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="#EF4444" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {/* Background Grid */}
+        {[20, 40, 60, 80].map(y => (
+          <line key={y} x1="10" y1={y} x2="90" y2={y} stroke="#27272A" strokeWidth="0.5" strokeDasharray="2 2" />
         ))}
 
-        {/* Analyzing Line */}
+        {/* Animated Line Graph */}
         <motion.path
-          d="M10,50 L90,50"
-          stroke="#4ADE80" strokeWidth="1" strokeDasharray="2 2"
-          animate={{ y: [-20, 20, -20] }}
-          transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+          d="M 10 70 C 20 70, 25 40, 35 45 C 45 50, 50 20, 60 30 C 70 40, 75 60, 90 55"
+          stroke="#EF4444" strokeWidth="2" fill="none"
+          initial={{ pathLength: 0, opacity: 0 }}
+          whileInView={{ pathLength: 1, opacity: 1 }}
+          transition={{ duration: 2, ease: "easeInOut" }}
         />
 
-        {/* Warning Icon */}
+        {/* Graph Area Fill */}
         <motion.path
-          d="M54,25 L50,18 L46,25 H54 Z"
-          fill="#EF4444"
-          animate={{ opacity: [0, 1, 0], y: -5 }}
-          transition={{ duration: 1, repeat: Infinity }}
+          d="M 10 70 C 20 70, 25 40, 35 45 C 45 50, 50 20, 60 30 C 70 40, 75 60, 90 55 L 90 90 L 10 90 Z"
+          fill="url(#chart-grad)"
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          transition={{ duration: 2, delay: 0.5 }}
         />
+
+        {/* High Risk Pulse Node */}
+        <motion.circle cx="50" cy="20" r="3" fill="#EF4444"
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          transition={{ delay: 1.5 }}
+        />
+        <motion.circle cx="50" cy="20" r="8" stroke="#EF4444" strokeWidth="1" fill="none"
+          animate={{ scale: [1, 2.5], opacity: [0.8, 0] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+        />
+
+        {/* Analysis Reticule */}
+        <motion.g
+          animate={{ x: [0, 40, -20, 0] }}
+          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <rect x="40" y="10" width="20" height="20" stroke="#4ADE80" strokeWidth="1" fill="none" rx="2" strokeDasharray="4 4" />
+          <line x1="50" y1="5" x2="50" y2="10" stroke="#4ADE80" strokeWidth="1" />
+          <line x1="50" y1="30" x2="50" y2="35" stroke="#4ADE80" strokeWidth="1" />
+          <line x1="35" y1="20" x2="40" y2="20" stroke="#4ADE80" strokeWidth="1" />
+          <line x1="60" y1="20" x2="65" y2="20" stroke="#4ADE80" strokeWidth="1" />
+        </motion.g>
+
+        {/* Data Bars */}
+        {[20, 35, 65, 80].map((x, i) => (
+          <motion.rect
+            key={i} x={x} y="85" width="4" height="0" fill="#3B82F6" rx="1"
+            initial={{ height: 0, y: 85 }}
+            whileInView={{ height: [10, 25, 15], y: [75, 60, 70] }}
+            transition={{ duration: 2, repeat: Infinity, repeatType: "reverse", delay: i * 0.2 }}
+          />
+        ))}
       </svg>
     )
   },
@@ -165,47 +221,60 @@ const steps = [
     description: "Receive a comprehensive report with a clear trust score and safety recommendations.",
     icon: <ShieldCheck className="w-8 h-8 text-black" />,
     svg: (
-      <svg viewBox="0 0 100 100" className="w-full h-full">
-        {/* Shield Outline */}
+      <svg viewBox="0 0 100 100" className="w-full h-full overflow-hidden">
+        <defs>
+          <linearGradient id="shield-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#4ADE80" stopOpacity="1" />
+            <stop offset="100%" stopColor="#059669" stopOpacity="1" />
+          </linearGradient>
+          <linearGradient id="shield-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#4ADE80" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="#059669" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {/* Hexagonal Tech Background */}
+        <path d="M50 5 L90 25 L90 75 L50 95 L10 75 L10 25 Z" stroke="#27272A" strokeWidth="1" fill="none" />
+        <path d="M50 15 L80 30 L80 70 L50 85 L20 70 L20 30 Z" stroke="#374151" strokeWidth="0.5" fill="none" strokeDasharray="2 2" />
+
+        {/* Main Shield Outline */}
         <motion.path
-          d="M50,15 C 65,15 80,25 80,25 V50 C80,70 50,85 50,85 C50,85 20,70 20,50 V25 C 20,25 35,15 50,15 Z"
-          stroke="#374151" strokeWidth="2" fill="none"
-          initial={{ pathLength: 0 }}
-          whileInView={{ pathLength: 1 }}
-          transition={{ duration: 1 }}
-          strokeLinejoin="round"
-          strokeLinecap="round"
+          d="M50,20 C 65,20 75,28 75,28 V55 C75,72 50,85 50,85 C50,85 25,72 25,55 V28 C 25,28 35,20 50,20 Z"
+          stroke="url(#shield-grad)" strokeWidth="2" fill="url(#shield-glow)"
+          initial={{ opacity: 0, scale: 0.8, y: 10 }}
+          whileInView={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.8, type: "spring", bounce: 0.4 }}
         />
 
-        {/* Holographic Fill */}
+        {/* Inner Tech Lines */}
         <motion.path
-          d="M50,18 C 65,18 77,27 77,27 V50 C77,68 50,82 50,82 C50,82 23,68 23,50 V27 C 23,27 35,18 50,18 Z"
-          fill="#4ADE80" opacity="0.1"
-          initial={{ scale: 0 }}
-          whileInView={{ scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-          style={{ originX: "50px", originY: "50px" }}
-          strokeLinejoin="round"
-          strokeLinecap="round"
+          d="M50 20 L50 85 M25 40 L75 40 M25 55 L75 55"
+          stroke="#4ADE80" strokeWidth="0.5" strokeOpacity="0.3" fill="none"
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          transition={{ delay: 0.8 }}
         />
 
-        {/* Checkmark */}
+        {/* Animated Checkmark */}
         <motion.path
-          d="M35,50 L45,60 L65,40"
-          stroke="#4ADE80" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"
+          d="M40,52 L47,59 L62,42"
+          stroke="#10B981" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"
           initial={{ pathLength: 0, opacity: 0 }}
           whileInView={{ pathLength: 1, opacity: 1 }}
-          transition={{ duration: 0.5, delay: 1 }}
+          transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
         />
 
-        {/* Particles */}
-        {[0, 1, 2].map((i) => (
-          <motion.circle
-            key={i}
-            cx="50" cy="50" r="2" fill="#4ADE80"
-            initial={{ opacity: 0, y: 0 }}
-            whileInView={{ opacity: [0, 1, 0], y: -30, x: (i - 1) * 20 }}
-            transition={{ duration: 2, repeat: Infinity, delay: 1.5 + i * 0.3 }}
+        {/* Glowing Success Particles */}
+        {[
+          { x: 30, y: 30, delay: 1 },
+          { x: 70, y: 35, delay: 1.2 },
+          { x: 40, y: 75, delay: 1.4 },
+          { x: 65, y: 65, delay: 1.6 }
+        ].map((p, i) => (
+          <motion.circle key={i} cx={p.x} cy={p.y} r="2" fill="#4ADE80"
+            initial={{ opacity: 0, scale: 0 }}
+            whileInView={{ opacity: [0, 1, 0], scale: [0, 1.5, 0], y: p.y - 15 }}
+            transition={{ duration: 2, delay: p.delay, repeat: Infinity }}
           />
         ))}
       </svg>

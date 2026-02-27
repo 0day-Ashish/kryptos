@@ -34,9 +34,9 @@ export default function Footer() {
         <div className="lg:col-span-3">
           <h3 className="font-bold text-zinc-500 uppercase tracking-widest text-lg font-[family-name:var(--font-nuqun)] mb-2">KRYPTOS</h3>
           <div className="text-zinc-300 font-medium leading-relaxed ">
-            <p className="uppercase font-[family-name:var(--font-spacemono)]">Via Cimabue, 20</p>
-            <p className="uppercase font-[family-name:var(--font-spacemono)]">â†³ 42014, Castellarano</p>
-            <p className="uppercase font-[family-name:var(--font-spacemono)]">Reggio Emilia — Italy</p>
+            <p className="uppercase font-[family-name:var(--font-spacemono)]">Sector 1, Salt Lake City</p>
+            <p className="uppercase font-[family-name:var(--font-spacemono)]">Kolkata, West Bengal</p>
+            <p className="uppercase font-[family-name:var(--font-spacemono)]">India. KOL-700059</p>
           </div>
         </div>
 
@@ -46,17 +46,17 @@ export default function Footer() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-4 text-zinc-300 font-bold uppercase text-sm">
             <div className="flex flex-col gap-3 font-[family-name:var(--font-spacemono)]">
               <Link href="/" className="hover:text-white transition-colors">Home</Link>
-              <Link href="#" className="hover:text-white transition-colors">Collections</Link>
-              <Link href="#" className="hover:text-white transition-colors">Projects</Link>
+              <Link href="#" className="hover:text-white transition-colors">Docs</Link>
+              <Link href="#" className="hover:text-white transition-colors">Wallet Watchlist</Link>
             </div>
             <div className="flex flex-col gap-3 font-[family-name:var(--font-spacemono)]">
-              <Link href="#" className="hover:text-white transition-colors">Innovations</Link>
-              <Link href="#" className="hover:text-white transition-colors">Applications</Link>
-              <Link href="#" className="hover:text-white transition-colors">Showroom</Link>
+              <Link href="#" className="hover:text-white transition-colors">Wallet Analyzer</Link>
+              <Link href="#" className="hover:text-white transition-colors">Bulk Screening</Link>
+              <Link href="#" className="hover:text-white transition-colors">Contract Auditor</Link>
             </div>
             <div className="flex flex-col gap-3 font-[family-name:var(--font-spacemono)]">
+              <Link href="#" className="hover:text-white transition-colors">Token risk scanner</Link>
               <Link href="#" className="hover:text-white transition-colors">Contact</Link>
-              <Link href="#" className="hover:text-white transition-colors">News</Link>
               <Link href="#" className="hover:text-white transition-colors">FAQ</Link>
             </div>
           </div>

@@ -314,9 +314,8 @@ export default function SharedReportPage({ params }: { params: Promise<{ id: str
           <div className="bg-white/5 border border-white/10 rounded-2xl p-1.5 flex flex-wrap gap-1">
             {tabs.map((tab) => (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition font-[family-name:var(--font-spacemono)] ${
-                  activeTab === tab.key ? "bg-white/10 text-white" : "text-zinc-400 hover:text-white hover:bg-white/5"
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition font-[family-name:var(--font-spacemono)] ${activeTab === tab.key ? "bg-white/10 text-white" : "text-zinc-400 hover:text-white hover:bg-white/5"
+                  }`}
               >
                 <tab.icon size={14} />{tab.label}
               </button>
@@ -363,12 +362,11 @@ export default function SharedReportPage({ params }: { params: Promise<{ id: str
                             <td className="py-2 text-zinc-300">{cp.address.slice(0, 10)}...{cp.address.slice(-4)}</td>
                             <td className="py-2">
                               {cp.label ? (
-                                <span className={`text-xs px-2 py-0.5 rounded ${
-                                  cp.category === "mixer" ? "bg-red-400/10 text-red-400" :
+                                <span className={`text-xs px-2 py-0.5 rounded ${cp.category === "mixer" ? "bg-red-400/10 text-red-400" :
                                   cp.category === "exchange" ? "bg-blue-400/10 text-blue-400" :
-                                  cp.category === "dex" ? "bg-purple-400/10 text-purple-400" :
-                                  "bg-white/10 text-zinc-400"
-                                }`}>{cp.label}</span>
+                                    cp.category === "dex" ? "bg-purple-400/10 text-purple-400" :
+                                      "bg-white/10 text-zinc-400"
+                                  }`}>{cp.label}</span>
                               ) : <span className="text-zinc-600">—</span>}
                             </td>
                             <td className="py-2 text-right text-zinc-300">{cp.total_value.toFixed(4)}</td>
@@ -402,7 +400,7 @@ export default function SharedReportPage({ params }: { params: Promise<{ id: str
               <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Share2 size={18} className="text-[#4ADE80]" />Transaction Graph</h3>
                 <div className="h-[500px] rounded-xl overflow-hidden bg-black/20">
-                  <Graph nodes={result.graph.nodes} links={result.graph.links} />
+                  <Graph address="" graphData={{ nodes: result.graph.nodes, links: result.graph.links }} />
                 </div>
                 <div className="flex flex-wrap gap-3 mt-4">
                   {[
@@ -426,7 +424,7 @@ export default function SharedReportPage({ params }: { params: Promise<{ id: str
               <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Activity size={18} className="text-[#4ADE80]" />Transaction Timeline</h3>
                 <div className="h-[350px]">
-                  <Timeline data={result.timeline} />
+                  <Timeline data={result.timeline} native={result.chain?.native ?? "ETH"} />
                 </div>
               </div>
             )}
@@ -439,16 +437,14 @@ export default function SharedReportPage({ params }: { params: Promise<{ id: str
                   {result.flags && result.flags.length > 0 ? (
                     <div className="space-y-3">
                       {result.flags.map((f, i) => (
-                        <div key={i} className={`flex items-start gap-3 p-3 rounded-xl ${
-                          f.includes("SANCTIONED") || f.includes("sanctioned") ? "bg-red-400/10 border border-red-400/20" :
+                        <div key={i} className={`flex items-start gap-3 p-3 rounded-xl ${f.includes("SANCTIONED") || f.includes("sanctioned") ? "bg-red-400/10 border border-red-400/20" :
                           f.includes("mixer") || f.includes("MEV") ? "bg-orange-400/10 border border-orange-400/20" :
-                          "bg-yellow-400/5 border border-yellow-400/10"
-                        }`}>
-                          <AlertTriangle size={16} className={`shrink-0 mt-0.5 ${
-                            f.includes("SANCTIONED") || f.includes("sanctioned") ? "text-red-400" :
+                            "bg-yellow-400/5 border border-yellow-400/10"
+                          }`}>
+                          <AlertTriangle size={16} className={`shrink-0 mt-0.5 ${f.includes("SANCTIONED") || f.includes("sanctioned") ? "text-red-400" :
                             f.includes("mixer") || f.includes("MEV") ? "text-orange-400" :
-                            "text-yellow-400"
-                          }`} />
+                              "text-yellow-400"
+                            }`} />
                           <span className="font-[family-name:var(--font-spacemono)] text-sm text-zinc-300">{f}</span>
                         </div>
                       ))}

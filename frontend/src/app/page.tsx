@@ -6,6 +6,7 @@ import Navbar from '@/components/Navbar';
 import Developers from '@/components/Developers';
 import HeroAnimation from '@/components/HeroAnimation';
 import Workflow from '@/components/Workflow';
+import FAQ from '@/components/FAQ';
 import SupportedChains from '@/components/SupportedChains';
 import { useAuth } from '@/context/AuthContext';
 
@@ -37,8 +38,8 @@ export default function Home() {
 
             <p className="max-w-2xl text-lg md:text-xl text-zinc-300 font-light mb-12 leading-relaxed font-[family-name:var(--font-spacemono)]">
               Kryptos scans any wallet across 14 EVM chains and returns an AI-powered risk
-  score in seconds. Detect scammers, mixer users, and suspicious patterns —
-  before you send a single transaction.
+              score in seconds. Detect scammers, mixer users, and suspicious patterns —
+              before you send a single transaction.
             </p>
 
             {isAuthenticated && address ? (
@@ -85,8 +86,8 @@ export default function Home() {
                     >
                       <div className="w-8 h-8 rounded-lg bg-[#F6851B]/10 flex items-center justify-center">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                          <path d="M21.3 2L13.1 8.2L14.6 4.5L21.3 2Z" fill="#E2761B" stroke="#E2761B" strokeWidth="0.1"/>
-                          <path d="M2.7 2L10.8 8.3L9.4 4.5L2.7 2Z" fill="#E4761B" stroke="#E4761B" strokeWidth="0.1"/>
+                          <path d="M21.3 2L13.1 8.2L14.6 4.5L21.3 2Z" fill="#E2761B" stroke="#E2761B" strokeWidth="0.1" />
+                          <path d="M2.7 2L10.8 8.3L9.4 4.5L2.7 2Z" fill="#E4761B" stroke="#E4761B" strokeWidth="0.1" />
                         </svg>
                       </div>
                       <div className="text-left">
@@ -99,8 +100,8 @@ export default function Home() {
                     >
                       <div className="w-8 h-8 rounded-lg bg-[#0052FF]/10 flex items-center justify-center">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                          <rect x="3" y="3" width="18" height="18" rx="9" fill="#0052FF"/>
-                          <rect x="8" y="8" width="8" height="8" rx="2" fill="white"/>
+                          <rect x="3" y="3" width="18" height="18" rx="9" fill="#0052FF" />
+                          <rect x="8" y="8" width="8" height="8" rx="2" fill="white" />
                         </svg>
                       </div>
                       <div className="text-left">
@@ -140,6 +141,9 @@ export default function Home() {
 
       {/* Workflow Section */}
       <Workflow />
+
+      {/* FAQ Section */}
+      <FAQ />
 
       {/* Developers Section */}
       <Developers />
