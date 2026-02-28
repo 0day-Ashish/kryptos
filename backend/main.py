@@ -52,6 +52,7 @@ try:
     from backend.ml.watchlist import quick_score
     from backend.report_pdf import generate_pdf_report
     from backend.on_chain import store_report_on_chain, get_report_from_chain
+    from backend.ipfs import pin_report_to_ipfs
 except ModuleNotFoundError:
     from ml.config import CHAIN_ID, ETHERSCAN_API_KEY, SUPPORTED_CHAINS, get_chain_by_id
     from ml.fetcher import (
@@ -81,6 +82,7 @@ except ModuleNotFoundError:
     from ml.watchlist import quick_score
     from report_pdf import generate_pdf_report
     from on_chain import store_report_on_chain, get_report_from_chain
+    from ipfs import pin_report_to_ipfs
 
 
 # ── Pydantic models for request bodies ──────────────────────────────────────
@@ -430,10 +432,29 @@ def analyze_wallet(address: str, chain_id: int = Query(default=1, description="C
     except Exception as e:
         print(f"   Community risk error (non-fatal): {e}")
 
-    # Step 11: Store report on Base Sepolia
+    # Step 11: Pin report to IPFS, then store CID + risk score on Base Sepolia
     on_chain = {}
     try:
-        on_chain = store_report_on_chain(target_address, risk_score)
+        # 11a — pin the report summary to IPFS via Pinata
+        report_summary = {
+            "address": target_address,
+            "risk_score": risk_score,
+            "risk_label": risk_label,
+            "flags": flags,
+            "sanctions": sanctions_result,
+            "chain": chain,
+            "tx_count": len(normal_txns),
+            "balance": balance,
+            "ml_raw_score": ml_raw_score,
+            "heuristic_score": heuristic_score,
+        }
+        ipfs_cid = pin_report_to_ipfs(report_summary, target_address)
+
+        # 11b — store (riskScore, ipfsCID, timestamp) on-chain
+        on_chain = store_report_on_chain(target_address, risk_score, ipfs_cid)
+        if ipfs_cid:
+            on_chain["ipfs_cid"] = ipfs_cid
+            on_chain["ipfs_url"] = f"https://gateway.pinata.cloud/ipfs/{ipfs_cid}"
         print(f"📝 On-chain report: {on_chain}")
     except Exception as e:
         print(f"⚠️ On-chain write failed (non-fatal): {e}")
