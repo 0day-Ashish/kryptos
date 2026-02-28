@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Navbar from "@/components/Navbar";
+import BackButton from "@/components/BackButton";
 import { useAuth } from "@/context/AuthContext";
 import {
   Radar, Search, Loader2, Copy, Check, Plus, Trash2, RefreshCw,
@@ -330,10 +331,11 @@ export default function Watchlist() {
   const selectedChainObj = chains.find((c) => c.id === selectedChain);
 
   return (
-    <main className="min-h-screen text-white overflow-hidden relative font-[family-name:var(--font-nuqun)]">
+    <main className="min-h-screen text-white overflow-x-hidden relative font-[family-name:var(--font-nuqun)]">
       <Navbar />
 
       <section className="min-h-screen px-8 md:px-24 pt-32 pb-20">
+        <BackButton />
         <div className="max-w-6xl mx-auto w-full">
           {/* ── Header ──────────────────────────────────────────────── */}
           <div className="mb-12">
@@ -553,8 +555,8 @@ export default function Watchlist() {
                       key={label}
                       onClick={() => setFilterRisk(key)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-[family-name:var(--font-spacemono)] transition-colors border ${filterRisk === key
-                          ? "border-[#4ADE80]/40 bg-[#4ADE80]/10 text-[#4ADE80]"
-                          : "border-white/10 bg-white/5 text-zinc-400 hover:bg-white/10"
+                        ? "border-[#4ADE80]/40 bg-[#4ADE80]/10 text-[#4ADE80]"
+                        : "border-white/10 bg-white/5 text-zinc-400 hover:bg-white/10"
                         }`}
                     >
                       {label}
@@ -610,8 +612,8 @@ export default function Watchlist() {
                       <div
                         key={w.id}
                         className={`border rounded-2xl transition-all ${isAlerted
-                            ? "bg-red-400/5 border-red-400/20"
-                            : "bg-white/5 border-white/10 hover:border-white/20"
+                          ? "bg-red-400/5 border-red-400/20"
+                          : "bg-white/5 border-white/10 hover:border-white/20"
                           }`}
                       >
                         {/* Main row */}

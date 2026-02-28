@@ -341,9 +341,8 @@ function CodeBlock({ code, lang = "bash" }: { code: string; lang?: string }) {
 
 function MethodBadge({ method }: { method: "GET" | "POST" }) {
   return (
-    <span className={`text-[10px] font-bold px-2 py-0.5 rounded font-[family-name:var(--font-spacemono)] ${
-      method === "GET" ? "bg-blue-400/10 text-blue-400" : "bg-[#4ADE80]/10 text-[#4ADE80]"
-    }`}>
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded font-[family-name:var(--font-spacemono)] ${method === "GET" ? "bg-blue-400/10 text-blue-400" : "bg-[#4ADE80]/10 text-[#4ADE80]"
+      }`}>
       {method}
     </span>
   );
@@ -427,7 +426,7 @@ export default function DocsPage() {
   };
 
   return (
-    <main className="min-h-screen text-white overflow-hidden relative font-[family-name:var(--font-nuqun)]">
+    <main className="min-h-screen text-white overflow-x-hidden relative font-[family-name:var(--font-nuqun)]">
       <Navbar />
 
       <div className="flex pt-24">
@@ -439,11 +438,10 @@ export default function DocsPage() {
           <nav className="space-y-1">
             {sections.map((s) => (
               <button key={s.id} onClick={() => scrollToSection(s.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition ${
-                  activeSection === s.id
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition ${activeSection === s.id
                     ? "bg-[#4ADE80]/10 text-[#4ADE80]"
                     : "text-zinc-400 hover:text-white hover:bg-white/5"
-                } font-[family-name:var(--font-spacemono)]`}
+                  } font-[family-name:var(--font-spacemono)]`}
               >
                 <s.icon size={16} />
                 {s.label}

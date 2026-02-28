@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback } from "react";
 import Graph from "../components/Graph";
 import Timeline from "../components/Timeline";
 import Navbar from "@/components/Navbar";
+import BackButton from "@/components/BackButton";
+
 import {
   ShieldAlert, Search, Share2, Activity, CheckCircle, ChevronDown,
   AlertTriangle, Zap, Copy, Check, Download, Clock, Users, Wallet,
@@ -521,10 +523,11 @@ export default function Home() {
   );
 
   return (
-    <main className="min-h-screen text-white overflow-hidden relative font-[family-name:var(--font-nuqun)]">
+    <main className="min-h-screen text-white overflow-x-hidden relative font-[family-name:var(--font-nuqun)]">
       <Navbar />
 
       <section className="min-h-screen px-8 md:px-24 pt-32 pb-20">
+        <BackButton />
         <div className="max-w-6xl mx-auto w-full">
 
           {/* ── Header ──────────────────────────────────────────────── */}

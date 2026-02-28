@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import BackButton from "@/components/BackButton";
 import {
   Coins, Search, Loader2, Copy, Check, AlertTriangle, CheckCircle,
   ShieldAlert, Users, PieChart, Lock, ExternalLink, ChevronDown,
@@ -167,10 +168,11 @@ export default function TokenScan() {
   const selectedChainObj = chains.find((c) => c.id === selectedChain);
 
   return (
-    <main className="min-h-screen text-white overflow-hidden relative font-[family-name:var(--font-nuqun)]">
+    <main className="min-h-screen text-white overflow-x-hidden relative font-[family-name:var(--font-nuqun)]">
       <Navbar />
 
       <section className="min-h-screen px-8 md:px-24 pt-32 pb-20">
+        <BackButton />
         <div className="max-w-6xl mx-auto w-full">
 
           {/* ── Header ──────────────────────────────────────────────── */}
@@ -356,8 +358,8 @@ export default function TokenScan() {
                       <div
                         key={i}
                         className={`flex items-start gap-3 p-3 rounded-xl text-sm font-[family-name:var(--font-spacemono)] ${flag.includes("No major red flags")
-                            ? "bg-green-400/10 text-green-400"
-                            : "bg-white/5 text-zinc-300"
+                          ? "bg-green-400/10 text-green-400"
+                          : "bg-white/5 text-zinc-300"
                           }`}
                       >
                         {flag.includes("No major red flags") ? (
@@ -416,8 +418,8 @@ export default function TokenScan() {
                     <div
                       key={item.label}
                       className={`flex items-center gap-3 p-4 rounded-xl ${item.value
-                          ? item.bad ? "bg-red-400/10" : "bg-green-400/10"
-                          : item.bad ? "bg-green-400/10" : "bg-red-400/10"
+                        ? item.bad ? "bg-red-400/10" : "bg-green-400/10"
+                        : item.bad ? "bg-green-400/10" : "bg-red-400/10"
                         }`}
                     >
                       {item.value ? (
@@ -428,8 +430,8 @@ export default function TokenScan() {
                       <div>
                         <p className="text-xs text-zinc-400">{item.label}</p>
                         <p className={`text-sm font-bold ${item.value
-                            ? item.bad ? "text-red-400" : "text-green-400"
-                            : item.bad ? "text-green-400" : "text-red-400"
+                          ? item.bad ? "text-red-400" : "text-green-400"
+                          : item.bad ? "text-green-400" : "text-red-400"
                           }`}>
                           {item.value ? "Detected" : "Not Detected"}
                         </p>
@@ -594,8 +596,8 @@ export default function TokenScan() {
                         <button
                           onClick={() => setCodeTab("source")}
                           className={`px-4 py-2 rounded-lg transition ${codeTab === "source"
-                              ? "bg-[#4ADE80]/20 text-[#4ADE80]"
-                              : "bg-white/5 text-zinc-400 hover:text-white"
+                            ? "bg-[#4ADE80]/20 text-[#4ADE80]"
+                            : "bg-white/5 text-zinc-400 hover:text-white"
                             }`}
                         >
                           Source Code
@@ -605,8 +607,8 @@ export default function TokenScan() {
                         <button
                           onClick={() => setCodeTab("abi")}
                           className={`px-4 py-2 rounded-lg transition ${codeTab === "abi"
-                              ? "bg-[#4ADE80]/20 text-[#4ADE80]"
-                              : "bg-white/5 text-zinc-400 hover:text-white"
+                            ? "bg-[#4ADE80]/20 text-[#4ADE80]"
+                            : "bg-white/5 text-zinc-400 hover:text-white"
                             }`}
                         >
                           <span className="flex items-center gap-1"><Braces className="w-3 h-3" /> ABI</span>
@@ -678,10 +680,10 @@ export default function TokenScan() {
                                 className={`text-xs font-[family-name:var(--font-spacemono)] px-2.5 py-1 rounded-lg border ${["mint", "_mint", "pause", "unpause", "blacklist", "addblacklist", "deny", "ban"].includes(
                                   fn.name?.toLowerCase()
                                 )
-                                    ? "bg-red-400/10 border-red-400/20 text-red-400"
-                                    : fn.stateMutability === "view" || fn.stateMutability === "pure"
-                                      ? "bg-blue-400/10 border-blue-400/20 text-blue-400"
-                                      : "bg-white/5 border-white/10 text-zinc-300"
+                                  ? "bg-red-400/10 border-red-400/20 text-red-400"
+                                  : fn.stateMutability === "view" || fn.stateMutability === "pure"
+                                    ? "bg-blue-400/10 border-blue-400/20 text-blue-400"
+                                    : "bg-white/5 border-white/10 text-zinc-300"
                                   }`}
                               >
                                 {fn.name}()

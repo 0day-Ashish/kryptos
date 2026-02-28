@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Navbar from "@/components/Navbar";
+import BackButton from "@/components/BackButton";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield, Search, Loader2, Copy, Check, AlertTriangle, CheckCircle,
@@ -239,7 +240,7 @@ export default function ContractAudit() {
     : 0;
 
   return (
-    <main className="min-h-screen text-white overflow-hidden relative font-[family-name:var(--font-nuqun)]">
+    <main className="min-h-screen text-white overflow-x-hidden relative font-[family-name:var(--font-nuqun)]">
       <Navbar />
 
       {/* ── Ambient glow ─────────────────────────────────────────────── */}
@@ -249,6 +250,7 @@ export default function ContractAudit() {
 
       {/* ── Page Content ──────────────────────────────────────────────── */}
       <section className="min-h-screen px-8 md:px-24 pt-32 pb-20">
+        <BackButton />
         <div className="max-w-6xl mx-auto w-full">
 
           {/* ── Header ─────────────────────────────────────────────── */}
@@ -667,8 +669,8 @@ export default function ContractAudit() {
                       <button
                         onClick={() => setFnFilter(null)}
                         className={`text-xs font-[family-name:var(--font-spacemono)] px-3 py-1.5 rounded-full border transition-all ${fnFilter === null
-                            ? "bg-[#4ADE80]/15 border-[#4ADE80]/30 text-[#4ADE80]"
-                            : "bg-white/[0.03] border-white/[0.06] text-zinc-500 hover:text-zinc-300 hover:border-white/[0.12]"
+                          ? "bg-[#4ADE80]/15 border-[#4ADE80]/30 text-[#4ADE80]"
+                          : "bg-white/[0.03] border-white/[0.06] text-zinc-500 hover:text-zinc-300 hover:border-white/[0.12]"
                           }`}
                       >
                         All
@@ -710,12 +712,12 @@ export default function ContractAudit() {
                             <div
                               key={i}
                               className={`rounded-lg border px-3 py-2.5 font-[family-name:var(--font-spacemono)] text-xs flex items-center gap-2 hover:bg-white/[0.02] transition-colors ${isDangerous
-                                  ? "bg-red-400/[0.04] border-red-400/15"
-                                  : isReadOnly
-                                    ? "bg-blue-400/[0.04] border-blue-400/15"
-                                    : fn.risk_tags.includes("payable")
-                                      ? "bg-yellow-400/[0.04] border-yellow-400/15"
-                                      : "bg-white/[0.02] border-white/[0.06]"
+                                ? "bg-red-400/[0.04] border-red-400/15"
+                                : isReadOnly
+                                  ? "bg-blue-400/[0.04] border-blue-400/15"
+                                  : fn.risk_tags.includes("payable")
+                                    ? "bg-yellow-400/[0.04] border-yellow-400/15"
+                                    : "bg-white/[0.02] border-white/[0.06]"
                                 }`}
                             >
                               {isDangerous ? (
@@ -759,8 +761,8 @@ export default function ContractAudit() {
                         <button
                           onClick={() => setCodeTab("source")}
                           className={`px-4 py-1.5 rounded-md transition-all ${codeTab === "source"
-                              ? "bg-[#4ADE80]/15 text-[#4ADE80]"
-                              : "text-zinc-500 hover:text-zinc-300"
+                            ? "bg-[#4ADE80]/15 text-[#4ADE80]"
+                            : "text-zinc-500 hover:text-zinc-300"
                             }`}
                         >
                           Source
@@ -770,8 +772,8 @@ export default function ContractAudit() {
                         <button
                           onClick={() => setCodeTab("abi")}
                           className={`px-4 py-1.5 rounded-md transition-all flex items-center gap-1 ${codeTab === "abi"
-                              ? "bg-[#4ADE80]/15 text-[#4ADE80]"
-                              : "text-zinc-500 hover:text-zinc-300"
+                            ? "bg-[#4ADE80]/15 text-[#4ADE80]"
+                            : "text-zinc-500 hover:text-zinc-300"
                             }`}
                         >
                           <Braces className="w-3 h-3" /> ABI

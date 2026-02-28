@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, use } from "react";
 import Navbar from "@/components/Navbar";
+import BackButton from "@/components/BackButton";
 import Graph from "../../components/Graph";
 import Timeline from "../../components/Timeline";
 import {
@@ -195,10 +196,11 @@ export default function SharedReportPage({ params }: { params: Promise<{ id: str
   ];
 
   return (
-    <main className="min-h-screen text-white overflow-hidden relative font-[family-name:var(--font-nuqun)]">
+    <main className="min-h-screen text-white overflow-x-hidden relative font-[family-name:var(--font-nuqun)]">
       <Navbar />
 
       <section className="min-h-screen px-8 md:px-24 pt-32 pb-20">
+        <BackButton />
         <div className="max-w-6xl mx-auto w-full space-y-6">
 
           {/* ── Shared Report Banner ── */}

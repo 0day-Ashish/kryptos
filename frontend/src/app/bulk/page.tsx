@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Navbar from "@/components/Navbar";
+import BackButton from "@/components/BackButton";
 import {
   Layers, Search, Loader2, Upload, AlertTriangle, CheckCircle,
   ShieldAlert, ChevronDown, Download, Trash2, Plus, FileText,
@@ -268,10 +269,11 @@ export default function BulkScreening() {
   const selectedChainData = chains.find((c) => c.id === selectedChain);
 
   return (
-    <main className="min-h-screen text-white overflow-hidden relative font-[family-name:var(--font-nuqun)]">
+    <main className="min-h-screen text-white overflow-x-hidden relative font-[family-name:var(--font-nuqun)]">
       <Navbar />
 
       <section className="min-h-screen px-8 md:px-24 pt-32 pb-20">
+        <BackButton />
         <div className="max-w-6xl mx-auto w-full">
 
           {/* ── Header ──────────────────────────────────────────────── */}

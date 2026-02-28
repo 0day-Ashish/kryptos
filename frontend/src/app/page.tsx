@@ -29,7 +29,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-[1.7fr_0.8fr] gap-12 items-center">
           {/* Text Content */}
           <div className="z-10">
-            <h1 className="text-6xl md:text-8xl font-medium mb-2 leading-[0.9]">
+            <h1 className="text-6xl md:text-8xl font-medium mb-2 mt-15 leading-[0.9]">
               ML X Web3
             </h1>
             <h2 className="text-6xl md:text-7xl font-[family-name:var(--font-caveat)] text-zinc-400 mb-12 -rotate-2 transform origin-left">
@@ -43,19 +43,20 @@ export default function Home() {
             </p>
 
             {isAuthenticated && address ? (
-              <div className="inline-flex items-center gap-4">
-                <div className="inline-flex items-center gap-3 bg-white/5 border border-[#4ADE80]/30 px-6 py-4 rounded-full font-[family-name:var(--font-spacemono)]">
-                  <Wallet className="w-5 h-5 text-[#4ADE80]" />
-                  <span className="text-[#4ADE80] font-bold">{address.slice(0, 6)}...{address.slice(-4)}</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="inline-flex items-center gap-2 bg-white/5 border border-[#4ADE80]/30 px-4 py-3 rounded-full font-[family-name:var(--font-spacemono)]">
+                  <Wallet className="w-4 h-4 text-[#4ADE80] shrink-0" />
+                  <span className="text-[#4ADE80] font-bold text-sm">{address.slice(0, 6)}...{address.slice(-4)}</span>
                 </div>
                 <button
                   onClick={signOut}
-                  className="flex items-center gap-2 px-5 py-4 bg-white/5 border border-white/10 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition-all font-[family-name:var(--font-spacemono)] text-sm"
+                  className="inline-flex items-center gap-2 px-4 py-3 bg-white/5 border border-white/10 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition-all font-[family-name:var(--font-spacemono)] text-sm"
                 >
-                  <LogOut className="w-4 h-4" />
-                  Disconnect
+                  <LogOut className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline">Disconnect</span>
                 </button>
               </div>
+
             ) : (
               <div className="relative inline-block">
                 <button
