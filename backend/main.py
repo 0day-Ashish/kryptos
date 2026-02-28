@@ -1,7 +1,10 @@
-from fastapi import FastAPI, Query, Body, Depends
+from fastapi import FastAPI, Query, Body, Depends, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
+import time
+from collections import defaultdict
+import threading
 import os
 import json
 import secrets
@@ -130,6 +133,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Rate Limiting Setup ────────────────────────────────────────────────────────────
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ── Health Check Endpoint ───────────────────────────────────────────────────────
+@app.get("/health")
+def health_check():
+    """Health check endpoint for production deployment."""
+    return {"status": "healthy", "version": "4.0.0"}
+
 # ── Initialize DB + register auth/watchlist routers ──────────────────────────
 init_db()
 app.include_router(auth_router)
@@ -146,7 +164,8 @@ def list_chains():
     return {"chains": SUPPORTED_CHAINS, "default": 1}
 
 @app.get("/analyze/{address}")
-def analyze_wallet(address: str, chain_id: int = Query(default=1, description="Chain ID to query")):
+@limiter.limit("10/minute")
+def analyze_wallet(request: Request, address: str, chain_id: int = Query(default=1, description="Chain ID to query")):
     # ENS resolution — accept vitalik.eth or raw address
     resolved = resolve_input(address)
     if resolved["resolved"] and resolved["address"]:
@@ -512,7 +531,8 @@ def analyze_wallet(address: str, chain_id: int = Query(default=1, description="C
 
 
 @app.get("/balance/{address}")
-def get_balance(address: str, chain_id: int = Query(default=1, description="Chain ID")):
+@limiter.limit("30/minute")
+def get_balance(request: Request, address: str, chain_id: int = Query(default=1, description="Chain ID")):
     """Fetch current native token balance for a wallet."""
     chain = get_chain_by_id(chain_id)
     bal = fetch_balance(address.lower(), chain_id)
@@ -543,7 +563,9 @@ def resolve_name(name: str):
 
 
 @app.get("/trace/{address}")
+@limiter.limit("5/minute")
 def trace_funds(
+    request: Request,
     address: str,
     chain_id: int = Query(default=1),
     depth: int = Query(default=3, ge=1, le=5),
@@ -564,7 +586,8 @@ def trace_funds(
 
 
 @app.get("/cross-chain/{address}")
-def cross_chain(address: str):
+@limiter.limit("3/minute")
+def cross_chain(request: Request, address: str):
     """Scan a wallet across all 14 supported chains."""
     return cross_chain_scan(address.lower())
 
@@ -676,7 +699,8 @@ def bridge_analysis(address: str, chain_id: int = Query(default=1)):
 # ── Community Reports ───────────────────────────────────────────────────────
 
 @app.post("/community/report")
-def create_community_report(req: ReportRequest):
+@limiter.limit("5/minute")
+def create_community_report(request: Request, req: ReportRequest):
     """Submit a community scam report for an address."""
     return submit_report(
         address=req.address,
@@ -715,7 +739,8 @@ def flagged_addresses(min_reports: int = Query(default=2, ge=1)):
 # ── Batch Analysis ──────────────────────────────────────────────────────────
 
 @app.post("/batch")
-def batch_analysis(req: BatchRequest):
+@limiter.limit("3/minute")
+def batch_analysis(request: Request, req: BatchRequest):
     """Analyze multiple addresses in one request (max 50)."""
     return analyze_batch(
         addresses=req.addresses,
@@ -727,7 +752,8 @@ def batch_analysis(req: BatchRequest):
 # ── Token Risk Scanner ───────────────────────────────────────────────────────
 
 @app.get("/token-scan/{address}")
-def token_risk_scan(address: str, chain_id: int = Query(default=1, description="Chain ID")):
+@limiter.limit("10/minute")
+def token_risk_scan(request: Request, address: str, chain_id: int = Query(default=1, description="Chain ID")):
     """Scan an ERC-20 token contract for risk signals."""
     try:
         return scan_token(address.lower(), chain_id)
@@ -740,7 +766,8 @@ def token_risk_scan(address: str, chain_id: int = Query(default=1, description="
 # ── Contract Auditor ─────────────────────────────────────────────────────────
 
 @app.get("/contract-audit/{address}")
-def contract_security_audit(address: str, chain_id: int = Query(default=1, description="Chain ID")):
+@limiter.limit("5/minute")
+def contract_security_audit(request: Request, address: str, chain_id: int = Query(default=1, description="Chain ID")):
     """Run a static security audit on a smart contract."""
     try:
         return audit_contract(address.lower(), chain_id)
@@ -751,7 +778,8 @@ def contract_security_audit(address: str, chain_id: int = Query(default=1, descr
 
 
 @app.post("/batch/csv")
-def batch_csv_analysis(req: BatchCsvRequest):
+@limiter.limit("3/minute")
+def batch_csv_analysis(request: Request, req: BatchCsvRequest):
     """Analyze addresses from CSV content."""
     addresses = parse_csv_addresses(req.csv_content)
     if not addresses:
