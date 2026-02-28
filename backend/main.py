@@ -176,6 +176,17 @@ def analyze_wallet(address: str, chain_id: int = Query(default=1, description="C
 
     if not all_target_txns:
         print("⚠️ No transactions found.")
+        # Still apply sanctions even if no on-chain txns exist on this specific chain
+        no_data_score = sanctions_result.get("risk_modifier", 0)
+        no_data_flags = ["No transactions found on this chain for this address"]
+        no_data_label = "No Data"
+        if sanctions_result.get("is_sanctioned"):
+            no_data_flags.insert(0, "ADDRESS IS ON OFAC SANCTIONS LIST")
+            no_data_label = "Critical Risk"
+        elif sanctions_result.get("is_mixer"):
+            no_data_flags.insert(0, "Address is a known mixer/tumbler")
+            if no_data_score >= 40:
+                no_data_label = "High Risk"
         return {
             "address": target_address,
             "chain": {
@@ -183,16 +194,17 @@ def analyze_wallet(address: str, chain_id: int = Query(default=1, description="C
                 "short": chain["short"], "explorer": chain["explorer"],
                 "native": chain["native"],
             },
-            "risk_score": 0,
-            "risk_label": "No Data",
+            "risk_score": no_data_score,
+            "risk_label": no_data_label,
             "ml_raw_score": 0,
             "heuristic_score": 0,
-            "flags": ["No transactions found on this chain for this address"],
+            "flags": no_data_flags,
             "feature_summary": {},
             "neighbors_analyzed": 0,
             "tx_count": 0,
             "internal_tx_count": 0,
             "token_transfers": len(token_txns),
+            "sanctions": sanctions_result,
             "graph": {"nodes": [{"id": target_address, "group": "suspect", "val": 20}], "links": []},
             "on_chain": {},
         }

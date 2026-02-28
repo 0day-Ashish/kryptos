@@ -9,10 +9,12 @@ try:
     from backend.ml.config import SUPPORTED_CHAINS
     from backend.ml.fetcher import fetch_transactions, fetch_balance
     from backend.ml.known_labels import lookup_address
+    from backend.ml.sanctions import check_sanctions
 except ModuleNotFoundError:
     from ml.config import SUPPORTED_CHAINS
     from ml.fetcher import fetch_transactions, fetch_balance
     from ml.known_labels import lookup_address
+    from ml.sanctions import check_sanctions
 
 
 def cross_chain_scan(
@@ -41,6 +43,17 @@ def cross_chain_scan(
     max_results = 50 if quick else 200
 
     label_info = lookup_address(address)
+    sanctions = check_sanctions(address)
+
+    # Prefer known_labels data; fall back to sanctions label if available
+    resolved_label = (label_info["label"] if label_info else None) or (
+        sanctions["lists"][0]["label"] if sanctions.get("lists") else None
+    )
+    resolved_category = (label_info["category"] if label_info else None) or (
+        "sanctioned" if sanctions.get("is_sanctioned") else
+        "mixer" if sanctions.get("is_mixer") else None
+    )
+
     active_chains: List[dict] = []
     inactive_chains: List[str] = []
     total_txns = 0
@@ -111,8 +124,15 @@ def cross_chain_scan(
 
     return {
         "address": address,
-        "label": label_info["label"] if label_info else None,
-        "category": label_info["category"] if label_info else None,
+        "label": resolved_label,
+        "category": resolved_category,
+        "sanctions": {
+            "is_sanctioned": sanctions.get("is_sanctioned", False),
+            "is_mixer": sanctions.get("is_mixer", False),
+            "is_scam": sanctions.get("is_scam", False),
+            "risk_modifier": sanctions.get("risk_modifier", 0),
+            "lists": sanctions.get("lists", []),
+        },
         "active_chains": active_chains,
         "inactive_chains": inactive_chains,
         "total_chains_active": len(active_chains),
