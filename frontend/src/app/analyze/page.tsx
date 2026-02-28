@@ -207,6 +207,8 @@ type CommunityReport = {
   status: string;
 };
 
+const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
 const HISTORY_KEY = "kryptos_search_history";
 const MAX_HISTORY = 8;
 
@@ -278,7 +280,7 @@ export default function Home() {
   const [shareCopied, setShareCopied] = useState(false);
 
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/chains")
+    fetch(`${API}/chains`)
       .then((r) => r.json())
       .then((data) => { setChains(data.chains || []); setSelectedChain(data.default || 1); })
       .catch(() => { });
@@ -319,7 +321,7 @@ export default function Home() {
     setBatchResult(null);
     setShareUrl(null);
     setShareCopied(false);
-    fetch(`http://127.0.0.1:8000/analyze/${address}?chain_id=${selectedChain}`)
+    fetch(`${API}/analyze/${address}?chain_id=${selectedChain}`)
       .then((r) => r.json())
       .then((data: AnalysisResult) => {
         setTarget(data.address || address);
@@ -343,7 +345,7 @@ export default function Home() {
   const loadFundFlow = () => {
     if (fundFlow || fundFlowLoading) return;
     setFundFlowLoading(true);
-    fetch(`http://127.0.0.1:8000/trace/${target}?chain_id=${selectedChain}&depth=3&direction=out`)
+    fetch(`${API}/trace/${target}?chain_id=${selectedChain}&depth=3&direction=out`)
       .then((r) => r.json())
       .then(setFundFlow)
       .catch(() => { })
@@ -353,7 +355,7 @@ export default function Home() {
   const loadCrossChain = () => {
     if (crossChainData || crossChainLoading) return;
     setCrossChainLoading(true);
-    fetch(`http://127.0.0.1:8000/cross-chain/${target}`)
+    fetch(`${API}/cross-chain/${target}`)
       .then((r) => r.json())
       .then(setCrossChainData)
       .catch(() => { })
@@ -363,7 +365,7 @@ export default function Home() {
   const loadTokens = () => {
     if (tokenData || tokenLoading) return;
     setTokenLoading(true);
-    fetch(`http://127.0.0.1:8000/tokens/${target}?chain_id=${selectedChain}`)
+    fetch(`${API}/tokens/${target}?chain_id=${selectedChain}`)
       .then((r) => r.json())
       .then(setTokenData)
       .catch(() => { })
@@ -373,7 +375,7 @@ export default function Home() {
   const loadSimilar = () => {
     if (similarData || similarLoading) return;
     setSimilarLoading(true);
-    fetch(`http://127.0.0.1:8000/similar/${target}?chain_id=${selectedChain}&top_k=5`)
+    fetch(`${API}/similar/${target}?chain_id=${selectedChain}&top_k=5`)
       .then((r) => r.json())
       .then(setSimilarData)
       .catch(() => { })
@@ -383,7 +385,7 @@ export default function Home() {
   const loadCommunity = () => {
     if (communityData || communityLoading) return;
     setCommunityLoading(true);
-    fetch(`http://127.0.0.1:8000/community/reports/${target}`)
+    fetch(`${API}/community/reports/${target}`)
       .then((r) => r.json())
       .then(setCommunityData)
       .catch(() => { })
@@ -393,7 +395,7 @@ export default function Home() {
   const submitCommunityReport = () => {
     if (!target || reportSubmitting) return;
     setReportSubmitting(true);
-    fetch("http://127.0.0.1:8000/community/report", {
+    fetch(`${API}/community/report`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ address: target, category: reportCategory, description: reportDescription, chain_id: selectedChain }),
@@ -405,7 +407,7 @@ export default function Home() {
   };
 
   const voteReport = (reportId: string, vote: string) => {
-    fetch("http://127.0.0.1:8000/community/vote", {
+    fetch(`${API}/community/vote`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ report_id: reportId, vote }),
@@ -418,7 +420,7 @@ export default function Home() {
     if (!batchInput.trim() || batchLoading) return;
     setBatchLoading(true);
     const addresses = batchInput.split(/[\n,]/).map((a) => a.trim()).filter(Boolean);
-    fetch("http://127.0.0.1:8000/batch", {
+    fetch(`${API}/batch`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ addresses, chain_id: selectedChain, quick: true }),
@@ -432,7 +434,7 @@ export default function Home() {
   const handleVerify = () => {
     if (!target) return;
     setOnChainLoading(true);
-    fetch(`http://127.0.0.1:8000/report/${target}`)
+    fetch(`${API}/report/${target}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.on_chain && data.explorer) window.open(data.explorer, "_blank");
@@ -445,7 +447,7 @@ export default function Home() {
 
   const downloadPdf = () => {
     if (!target) return;
-    window.open(`http://127.0.0.1:8000/report/${target}/pdf?chain_id=${selectedChain}`, "_blank");
+    window.open(`${API}/report/${target}/pdf?chain_id=${selectedChain}`, "_blank");
   };
 
   const copyAddress = () => {
@@ -470,7 +472,7 @@ export default function Home() {
     setShareLoading(true);
     setShareUrl(null);
     try {
-      const res = await fetch("http://127.0.0.1:8000/share", {
+      const res = await fetch(`${API}/share`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: result }),

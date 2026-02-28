@@ -121,10 +121,10 @@ function getGradeColor(grade: string) {
 
 const SEVERITY_CONFIG: Record<string, { icon: typeof AlertTriangle; color: string; bg: string; border: string; label: string }> = {
   critical: { icon: ShieldAlert, color: "text-red-400", bg: "bg-red-400/10", border: "border-red-400/20", label: "Critical" },
-  high:     { icon: AlertTriangle, color: "text-orange-400", bg: "bg-orange-400/10", border: "border-orange-400/20", label: "High" },
-  medium:   { icon: AlertCircle, color: "text-yellow-400", bg: "bg-yellow-400/10", border: "border-yellow-400/20", label: "Medium" },
-  low:      { icon: Info, color: "text-blue-400", bg: "bg-blue-400/10", border: "border-blue-400/20", label: "Low" },
-  info:     { icon: Eye, color: "text-zinc-400", bg: "bg-white/5", border: "border-white/10", label: "Info" },
+  high: { icon: AlertTriangle, color: "text-orange-400", bg: "bg-orange-400/10", border: "border-orange-400/20", label: "High" },
+  medium: { icon: AlertCircle, color: "text-yellow-400", bg: "bg-yellow-400/10", border: "border-yellow-400/20", label: "Medium" },
+  low: { icon: Info, color: "text-blue-400", bg: "bg-blue-400/10", border: "border-blue-400/20", label: "Low" },
+  info: { icon: Eye, color: "text-zinc-400", bg: "bg-white/5", border: "border-white/10", label: "Info" },
 };
 
 const LOADING_STEPS = [
@@ -153,6 +153,8 @@ function useAnimatedScore(target: number, duration = 1200) {
   return value;
 }
 
+const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function ContractAudit() {
@@ -173,13 +175,13 @@ export default function ContractAudit() {
 
   // Fetch chains on mount
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/chains")
+    fetch(`${API}/chains`)
       .then((r) => r.json())
       .then((data) => {
         setChains(data.chains || []);
         setSelectedChain(data.default || 1);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Loading step animation
@@ -216,7 +218,7 @@ export default function ContractAudit() {
 
     try {
       const res = await fetch(
-        `http://127.0.0.1:8000/contract-audit/${addr}?chain_id=${selectedChain}`
+        `${API}/contract-audit/${addr}?chain_id=${selectedChain}`
       );
       const data = await res.json();
       if (data.error) {
@@ -281,9 +283,8 @@ export default function ContractAudit() {
                     <button
                       key={chain.id}
                       onClick={() => { setSelectedChain(chain.id); setChainDropdownOpen(false); }}
-                      className={`w-full text-left px-4 py-3 text-sm hover:bg-white/10 transition font-[family-name:var(--font-spacemono)] ${
-                        chain.id === selectedChain ? "text-[#4ADE80]" : "text-zinc-300"
-                      }`}
+                      className={`w-full text-left px-4 py-3 text-sm hover:bg-white/10 transition font-[family-name:var(--font-spacemono)] ${chain.id === selectedChain ? "text-[#4ADE80]" : "text-zinc-300"
+                        }`}
                     >
                       {chain.name}
                     </button>
@@ -333,9 +334,8 @@ export default function ContractAudit() {
                 {LOADING_STEPS.map((step, i) => (
                   <div
                     key={i}
-                    className={`flex items-center gap-3 text-sm font-[family-name:var(--font-spacemono)] transition-all duration-300 ${
-                      i < loadingStep ? "text-[#4ADE80]" : i === loadingStep ? "text-white" : "text-zinc-600"
-                    }`}
+                    className={`flex items-center gap-3 text-sm font-[family-name:var(--font-spacemono)] transition-all duration-300 ${i < loadingStep ? "text-[#4ADE80]" : i === loadingStep ? "text-white" : "text-zinc-600"
+                      }`}
                   >
                     {i < loadingStep ? (
                       <CheckCircle className="w-4 h-4" />
@@ -666,11 +666,10 @@ export default function ContractAudit() {
                     <div className="flex flex-wrap gap-2 mb-5">
                       <button
                         onClick={() => setFnFilter(null)}
-                        className={`text-xs font-[family-name:var(--font-spacemono)] px-3 py-1.5 rounded-full border transition-all ${
-                          fnFilter === null
+                        className={`text-xs font-[family-name:var(--font-spacemono)] px-3 py-1.5 rounded-full border transition-all ${fnFilter === null
                             ? "bg-[#4ADE80]/15 border-[#4ADE80]/30 text-[#4ADE80]"
                             : "bg-white/[0.03] border-white/[0.06] text-zinc-500 hover:text-zinc-300 hover:border-white/[0.12]"
-                        }`}
+                          }`}
                       >
                         All
                       </button>
@@ -681,17 +680,16 @@ export default function ContractAudit() {
                         const tagColor = ["admin", "mint", "blacklist", "destructive"].includes(tag)
                           ? "bg-red-400/10 border-red-400/20 text-red-400"
                           : tag === "payable"
-                          ? "bg-yellow-400/10 border-yellow-400/20 text-yellow-400"
-                          : tag === "upgradeable"
-                          ? "bg-orange-400/10 border-orange-400/20 text-orange-400"
-                          : "bg-blue-400/10 border-blue-400/20 text-blue-400";
+                            ? "bg-yellow-400/10 border-yellow-400/20 text-yellow-400"
+                            : tag === "upgradeable"
+                              ? "bg-orange-400/10 border-orange-400/20 text-orange-400"
+                              : "bg-blue-400/10 border-blue-400/20 text-blue-400";
                         return (
                           <button
                             key={tag}
                             onClick={() => setFnFilter(isActive ? null : tag)}
-                            className={`text-xs font-[family-name:var(--font-spacemono)] px-3 py-1.5 rounded-full border transition-all ${
-                              isActive ? tagColor : "bg-white/[0.03] border-white/[0.06] text-zinc-500 hover:text-zinc-300 hover:border-white/[0.12]"
-                            }`}
+                            className={`text-xs font-[family-name:var(--font-spacemono)] px-3 py-1.5 rounded-full border transition-all ${isActive ? tagColor : "bg-white/[0.03] border-white/[0.06] text-zinc-500 hover:text-zinc-300 hover:border-white/[0.12]"
+                              }`}
                           >
                             {tag} ({count})
                           </button>
@@ -711,15 +709,14 @@ export default function ContractAudit() {
                           return (
                             <div
                               key={i}
-                              className={`rounded-lg border px-3 py-2.5 font-[family-name:var(--font-spacemono)] text-xs flex items-center gap-2 hover:bg-white/[0.02] transition-colors ${
-                                isDangerous
+                              className={`rounded-lg border px-3 py-2.5 font-[family-name:var(--font-spacemono)] text-xs flex items-center gap-2 hover:bg-white/[0.02] transition-colors ${isDangerous
                                   ? "bg-red-400/[0.04] border-red-400/15"
                                   : isReadOnly
-                                  ? "bg-blue-400/[0.04] border-blue-400/15"
-                                  : fn.risk_tags.includes("payable")
-                                  ? "bg-yellow-400/[0.04] border-yellow-400/15"
-                                  : "bg-white/[0.02] border-white/[0.06]"
-                              }`}
+                                    ? "bg-blue-400/[0.04] border-blue-400/15"
+                                    : fn.risk_tags.includes("payable")
+                                      ? "bg-yellow-400/[0.04] border-yellow-400/15"
+                                      : "bg-white/[0.02] border-white/[0.06]"
+                                }`}
                             >
                               {isDangerous ? (
                                 <Lock className="w-3 h-3 text-red-400 shrink-0" />
@@ -730,9 +727,8 @@ export default function ContractAudit() {
                               ) : (
                                 <Unlock className="w-3 h-3 text-zinc-600 shrink-0" />
                               )}
-                              <span className={`truncate ${
-                                isDangerous ? "text-red-400" : isReadOnly ? "text-blue-400" : "text-zinc-400"
-                              }`}>
+                              <span className={`truncate ${isDangerous ? "text-red-400" : isReadOnly ? "text-blue-400" : "text-zinc-400"
+                                }`}>
                                 {fn.name}()
                               </span>
                               <span className="text-zinc-700 ml-auto shrink-0">
@@ -762,11 +758,10 @@ export default function ContractAudit() {
                       {result.source_code && (
                         <button
                           onClick={() => setCodeTab("source")}
-                          className={`px-4 py-1.5 rounded-md transition-all ${
-                            codeTab === "source"
+                          className={`px-4 py-1.5 rounded-md transition-all ${codeTab === "source"
                               ? "bg-[#4ADE80]/15 text-[#4ADE80]"
                               : "text-zinc-500 hover:text-zinc-300"
-                          }`}
+                            }`}
                         >
                           Source
                         </button>
@@ -774,11 +769,10 @@ export default function ContractAudit() {
                       {result.abi && (
                         <button
                           onClick={() => setCodeTab("abi")}
-                          className={`px-4 py-1.5 rounded-md transition-all flex items-center gap-1 ${
-                            codeTab === "abi"
+                          className={`px-4 py-1.5 rounded-md transition-all flex items-center gap-1 ${codeTab === "abi"
                               ? "bg-[#4ADE80]/15 text-[#4ADE80]"
                               : "text-zinc-500 hover:text-zinc-300"
-                          }`}
+                            }`}
                         >
                           <Braces className="w-3 h-3" /> ABI
                         </button>
@@ -902,9 +896,8 @@ function CodeBlock({
       {/* Code area */}
       <pre
         data-lenis-prevent
-        className={`bg-black/40 border border-white/[0.04] rounded-xl p-4 font-[family-name:var(--font-spacemono)] text-xs text-zinc-500 whitespace-pre overflow-auto transition-all duration-500 ${
-          expanded ? "max-h-[80vh]" : "max-h-[400px]"
-        }`}
+        className={`bg-black/40 border border-white/[0.04] rounded-xl p-4 font-[family-name:var(--font-spacemono)] text-xs text-zinc-500 whitespace-pre overflow-auto transition-all duration-500 ${expanded ? "max-h-[80vh]" : "max-h-[400px]"
+          }`}
       >
         <code>{code}</code>
       </pre>

@@ -79,6 +79,8 @@ const LOADING_MESSAGES = [
   "Compiling results...",
 ];
 
+const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function BulkScreening() {
@@ -108,13 +110,13 @@ export default function BulkScreening() {
 
   // Fetch chains
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/chains")
+    fetch(`${API}/chains`)
       .then((r) => r.json())
       .then((data) => {
         setChains(data.chains || []);
         setSelectedChain(data.default || 1);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Loading animation
@@ -171,7 +173,7 @@ export default function BulkScreening() {
 
       setLoading(true);
       try {
-        const res = await fetch("http://127.0.0.1:8000/batch", {
+        const res = await fetch(`${API}/batch`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -199,7 +201,7 @@ export default function BulkScreening() {
 
       setLoading(true);
       try {
-        const res = await fetch("http://127.0.0.1:8000/batch/csv", {
+        const res = await fetch(`${API}/batch/csv`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -249,17 +251,17 @@ export default function BulkScreening() {
   // Filtered + sorted results
   const filteredResults = result?.results
     ? result.results
-        .filter((r) => {
-          if (filterRisk === "all") return true;
-          if (r.risk_score === null) return false;
-          if (filterRisk === "high") return r.risk_score >= 75;
-          if (filterRisk === "medium") return r.risk_score >= 40 && r.risk_score < 75;
-          return r.risk_score < 40;
-        })
-        .sort((a, b) => {
-          if (sortBy === "risk") return (b.risk_score ?? -1) - (a.risk_score ?? -1);
-          return a.address.localeCompare(b.address);
-        })
+      .filter((r) => {
+        if (filterRisk === "all") return true;
+        if (r.risk_score === null) return false;
+        if (filterRisk === "high") return r.risk_score >= 75;
+        if (filterRisk === "medium") return r.risk_score >= 40 && r.risk_score < 75;
+        return r.risk_score < 40;
+      })
+      .sort((a, b) => {
+        if (sortBy === "risk") return (b.risk_score ?? -1) - (a.risk_score ?? -1);
+        return a.address.localeCompare(b.address);
+      })
     : [];
 
   const addressCount = inputMode === "manual" ? getManualAddresses().length : 0;

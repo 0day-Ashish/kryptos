@@ -91,6 +91,8 @@ const LOADING_STEPS = [
   "Computing risk score...",
 ];
 
+const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function TokenScan() {
@@ -108,13 +110,13 @@ export default function TokenScan() {
 
   // Fetch chains on mount
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/chains")
+    fetch(`${API}/chains`)
       .then((r) => r.json())
       .then((data) => {
         setChains(data.chains || []);
         setSelectedChain(data.default || 1);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Loading animation
@@ -147,7 +149,7 @@ export default function TokenScan() {
 
     try {
       const res = await fetch(
-        `http://127.0.0.1:8000/token-scan/${addr}?chain_id=${selectedChain}`
+        `${API}/token-scan/${addr}?chain_id=${selectedChain}`
       );
       const data = await res.json();
       if (data.error) {
@@ -204,9 +206,8 @@ export default function TokenScan() {
                     <button
                       key={chain.id}
                       onClick={() => { setSelectedChain(chain.id); setChainDropdownOpen(false); }}
-                      className={`w-full text-left px-4 py-3 text-sm hover:bg-white/10 transition font-[family-name:var(--font-spacemono)] ${
-                        chain.id === selectedChain ? "text-[#4ADE80]" : "text-zinc-300"
-                      }`}
+                      className={`w-full text-left px-4 py-3 text-sm hover:bg-white/10 transition font-[family-name:var(--font-spacemono)] ${chain.id === selectedChain ? "text-[#4ADE80]" : "text-zinc-300"
+                        }`}
                     >
                       {chain.name}
                     </button>
@@ -255,9 +256,8 @@ export default function TokenScan() {
                 {LOADING_STEPS.map((step, i) => (
                   <div
                     key={i}
-                    className={`flex items-center gap-3 text-sm font-[family-name:var(--font-spacemono)] transition-all duration-300 ${
-                      i < loadingStep ? "text-[#4ADE80]" : i === loadingStep ? "text-white" : "text-zinc-600"
-                    }`}
+                    className={`flex items-center gap-3 text-sm font-[family-name:var(--font-spacemono)] transition-all duration-300 ${i < loadingStep ? "text-[#4ADE80]" : i === loadingStep ? "text-white" : "text-zinc-600"
+                      }`}
                   >
                     {i < loadingStep ? (
                       <CheckCircle className="w-4 h-4" />
@@ -355,11 +355,10 @@ export default function TokenScan() {
                     {result.flags.map((flag, i) => (
                       <div
                         key={i}
-                        className={`flex items-start gap-3 p-3 rounded-xl text-sm font-[family-name:var(--font-spacemono)] ${
-                          flag.includes("No major red flags")
+                        className={`flex items-start gap-3 p-3 rounded-xl text-sm font-[family-name:var(--font-spacemono)] ${flag.includes("No major red flags")
                             ? "bg-green-400/10 text-green-400"
                             : "bg-white/5 text-zinc-300"
-                        }`}
+                          }`}
                       >
                         {flag.includes("No major red flags") ? (
                           <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
@@ -416,11 +415,10 @@ export default function TokenScan() {
                   ].map((item) => (
                     <div
                       key={item.label}
-                      className={`flex items-center gap-3 p-4 rounded-xl ${
-                        item.value
+                      className={`flex items-center gap-3 p-4 rounded-xl ${item.value
                           ? item.bad ? "bg-red-400/10" : "bg-green-400/10"
                           : item.bad ? "bg-green-400/10" : "bg-red-400/10"
-                      }`}
+                        }`}
                     >
                       {item.value ? (
                         item.bad ? <AlertTriangle className="w-5 h-5 text-red-400" /> : <CheckCircle className="w-5 h-5 text-green-400" />
@@ -429,11 +427,10 @@ export default function TokenScan() {
                       )}
                       <div>
                         <p className="text-xs text-zinc-400">{item.label}</p>
-                        <p className={`text-sm font-bold ${
-                          item.value
+                        <p className={`text-sm font-bold ${item.value
                             ? item.bad ? "text-red-400" : "text-green-400"
                             : item.bad ? "text-green-400" : "text-red-400"
-                        }`}>
+                          }`}>
                           {item.value ? "Detected" : "Not Detected"}
                         </p>
                       </div>
@@ -507,22 +504,20 @@ export default function TokenScan() {
                               {holder.balance > 1e6
                                 ? `${(holder.balance / 1e6).toFixed(2)}M`
                                 : holder.balance > 1e3
-                                ? `${(holder.balance / 1e3).toFixed(2)}K`
-                                : holder.balance.toFixed(2)}
+                                  ? `${(holder.balance / 1e3).toFixed(2)}K`
+                                  : holder.balance.toFixed(2)}
                             </td>
                             <td className="py-3 text-right">
                               <div className="flex items-center justify-end gap-2">
                                 <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
                                   <div
-                                    className={`h-full rounded-full ${
-                                      holder.percentage > 20 ? "bg-red-400" : holder.percentage > 10 ? "bg-yellow-400" : "bg-green-400"
-                                    }`}
+                                    className={`h-full rounded-full ${holder.percentage > 20 ? "bg-red-400" : holder.percentage > 10 ? "bg-yellow-400" : "bg-green-400"
+                                      }`}
                                     style={{ width: `${Math.min(holder.percentage, 100)}%` }}
                                   />
                                 </div>
-                                <span className={`w-12 text-right ${
-                                  holder.percentage > 20 ? "text-red-400" : holder.percentage > 10 ? "text-yellow-400" : "text-zinc-300"
-                                }`}>
+                                <span className={`w-12 text-right ${holder.percentage > 20 ? "text-red-400" : holder.percentage > 10 ? "text-yellow-400" : "text-zinc-300"
+                                  }`}>
                                   {holder.percentage.toFixed(1)}%
                                 </span>
                               </div>
@@ -598,11 +593,10 @@ export default function TokenScan() {
                       {result.contract_analysis.source_code && (
                         <button
                           onClick={() => setCodeTab("source")}
-                          className={`px-4 py-2 rounded-lg transition ${
-                            codeTab === "source"
+                          className={`px-4 py-2 rounded-lg transition ${codeTab === "source"
                               ? "bg-[#4ADE80]/20 text-[#4ADE80]"
                               : "bg-white/5 text-zinc-400 hover:text-white"
-                          }`}
+                            }`}
                         >
                           Source Code
                         </button>
@@ -610,11 +604,10 @@ export default function TokenScan() {
                       {result.contract_analysis.abi && (
                         <button
                           onClick={() => setCodeTab("abi")}
-                          className={`px-4 py-2 rounded-lg transition ${
-                            codeTab === "abi"
+                          className={`px-4 py-2 rounded-lg transition ${codeTab === "abi"
                               ? "bg-[#4ADE80]/20 text-[#4ADE80]"
                               : "bg-white/5 text-zinc-400 hover:text-white"
-                          }`}
+                            }`}
                         >
                           <span className="flex items-center gap-1"><Braces className="w-3 h-3" /> ABI</span>
                         </button>
@@ -641,9 +634,8 @@ export default function TokenScan() {
                         </div>
                         <pre
                           data-lenis-prevent
-                          className={`bg-black/40 border border-white/5 rounded-xl p-4 font-[family-name:var(--font-spacemono)] text-xs text-zinc-300 whitespace-pre overflow-auto transition-all duration-300 ${
-                            codeExpanded ? "max-h-[80vh]" : "max-h-[400px]"
-                          }`}
+                          className={`bg-black/40 border border-white/5 rounded-xl p-4 font-[family-name:var(--font-spacemono)] text-xs text-zinc-300 whitespace-pre overflow-auto transition-all duration-300 ${codeExpanded ? "max-h-[80vh]" : "max-h-[400px]"
+                            }`}
                         >
                           <code>{result.contract_analysis.source_code}</code>
                         </pre>
@@ -683,15 +675,14 @@ export default function TokenScan() {
                             .map((fn: any, i: number) => (
                               <span
                                 key={i}
-                                className={`text-xs font-[family-name:var(--font-spacemono)] px-2.5 py-1 rounded-lg border ${
-                                  ["mint", "_mint", "pause", "unpause", "blacklist", "addblacklist", "deny", "ban"].includes(
-                                    fn.name?.toLowerCase()
-                                  )
+                                className={`text-xs font-[family-name:var(--font-spacemono)] px-2.5 py-1 rounded-lg border ${["mint", "_mint", "pause", "unpause", "blacklist", "addblacklist", "deny", "ban"].includes(
+                                  fn.name?.toLowerCase()
+                                )
                                     ? "bg-red-400/10 border-red-400/20 text-red-400"
                                     : fn.stateMutability === "view" || fn.stateMutability === "pure"
-                                    ? "bg-blue-400/10 border-blue-400/20 text-blue-400"
-                                    : "bg-white/5 border-white/10 text-zinc-300"
-                                }`}
+                                      ? "bg-blue-400/10 border-blue-400/20 text-blue-400"
+                                      : "bg-white/5 border-white/10 text-zinc-300"
+                                  }`}
                               >
                                 {fn.name}()
                               </span>
@@ -700,9 +691,8 @@ export default function TokenScan() {
 
                         <pre
                           data-lenis-prevent
-                          className={`bg-black/40 border border-white/5 rounded-xl p-4 font-[family-name:var(--font-spacemono)] text-xs text-zinc-300 whitespace-pre overflow-auto transition-all duration-300 ${
-                            codeExpanded ? "max-h-[80vh]" : "max-h-[400px]"
-                          }`}
+                          className={`bg-black/40 border border-white/5 rounded-xl p-4 font-[family-name:var(--font-spacemono)] text-xs text-zinc-300 whitespace-pre overflow-auto transition-all duration-300 ${codeExpanded ? "max-h-[80vh]" : "max-h-[400px]"
+                            }`}
                         >
                           <code>{JSON.stringify(result.contract_analysis.abi, null, 2)}</code>
                         </pre>

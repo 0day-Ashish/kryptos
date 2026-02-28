@@ -111,6 +111,8 @@ function timeAgo(dateStr: string | null): string {
   return new Date(dateStr).toLocaleDateString();
 }
 
+const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
 /* ───────────── Component ───────────── */
 
 export default function SharedReportPage({ params }: { params: Promise<{ id: string }> }) {
@@ -123,7 +125,7 @@ export default function SharedReportPage({ params }: { params: Promise<{ id: str
 
   useEffect(() => {
     if (!id) return;
-    fetch(`http://127.0.0.1:8000/shared/${id}`)
+    fetch(`${API}/shared/${id}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.error) {
