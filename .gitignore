@@ -4,7 +4,6 @@ __pycache__/
 
 # API keys — never commit
 .env
-backend/ml/config.py
 backend/.env
 
 backend/.cache
