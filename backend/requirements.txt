@@ -10,4 +10,5 @@ scikit-learn==1.6.1
 numpy==1.26.4
 web3==7.6.0
 sqlalchemy==2.0.36
+PyJWT==2.8.0
 reportlab==4.2.5
