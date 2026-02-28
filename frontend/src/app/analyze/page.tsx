@@ -883,6 +883,31 @@ export default function Home() {
                     <Globe size={16} className="text-[#4ADE80]" /><h3 className="font-bold text-sm">Cross-Chain Activity</h3>
                     {crossChainData && <span className="text-xs text-zinc-500 font-[family-name:var(--font-spacemono)]">Active on {crossChainData.total_chains_active} chain(s)</span>}
                   </div>
+
+                  {/* Cross-Chain Sanctions/Label Banner */}
+                  {crossChainData?.sanctions?.is_sanctioned ? (
+                    <div className="mx-5 mt-4 p-4 bg-red-400/10 border border-red-400/20 rounded-xl flex items-start gap-3">
+                      <Ban size={20} className="text-red-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold text-red-400">OFAC Sanctioned Address</p>
+                        <p className="text-sm text-red-400/80 font-[family-name:var(--font-spacemono)]">
+                          Detected via cross-chain scanner. {crossChainData.label && `Known as: ${crossChainData.label}`}
+                        </p>
+                        {crossChainData.sanctions.lists?.map((l: any, i: number) => (
+                          <span key={i} className="inline-block text-xs bg-red-400/10 text-red-400 px-2 py-0.5 rounded mt-2 mr-1 font-[family-name:var(--font-spacemono)]">{l.list_name}: {l.label}</span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : crossChainData?.label ? (
+                    <div className="mx-5 mt-4 p-3 bg-white/10 border border-white/20 rounded-xl flex items-center gap-3">
+                      <Fingerprint size={16} className="text-zinc-300" />
+                      <span className="text-sm font-[family-name:var(--font-spacemono)] text-zinc-300">
+                        Identified Entity: <strong className="text-white">{crossChainData.label}</strong>
+                        {crossChainData.category && <span className="ml-2 text-xs px-2 py-0.5 bg-white/10 rounded">{crossChainData.category}</span>}
+                      </span>
+                    </div>
+                  ) : null}
+
                   {crossChainLoading ? (
                     <div className="p-8 flex items-center justify-center gap-2 text-sm text-zinc-400 font-[family-name:var(--font-spacemono)]"><Loader2 size={14} className="animate-spin" />Scanning 14 chains...</div>
                   ) : crossChainData?.active_chains?.length > 0 ? (
