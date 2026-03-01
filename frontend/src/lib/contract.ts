@@ -4,7 +4,7 @@ import { ethers } from "ethers";
 
 export const CONTRACT_ADDRESS =
   process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ||
-  "0x015ffC4Bb2E5238A1646EC8860030bfb86650Ad2";
+  "0xFc3528536bfA705Ae0E40946Fe26A1F86fBAAF74";
 
 export const BASE_SEPOLIA_RPC =
   process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC ||
@@ -24,6 +24,18 @@ export const RISK_REGISTRY_ABI = [
       { name: "riskScore", type: "uint8" },
       { name: "ipfsHash", type: "string" },
       { name: "timestamp", type: "uint64" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "storeReportsBatch",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "wallets", type: "bytes32[]" },
+      { name: "riskScores", type: "uint8[]" },
+      { name: "ipfsHashes", type: "string[]" },
+      { name: "timestamps", type: "uint64[]" },
     ],
     outputs: [],
   },

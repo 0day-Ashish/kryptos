@@ -23,3 +23,13 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# ...existing code...
+
+# Database
+backend/kryptos.db
+
+# Backend — no Node artifacts
+backend/package.json
+backend/package-lock.json
+backend/node_modules/

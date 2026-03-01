@@ -364,7 +364,7 @@ function EndpointCard({ ep }: { ep: Endpoint }) {
 
           {ep.params && ep.params.length > 0 && (
             <div>
-              <h5 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 font-[family-name:var(--font-spacemono)]">Parameters</h5>
+              <h5 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 font-[family-name:var(--font-spacemono)]">Parameters</h5>
               <div className="space-y-1.5">
                 {ep.params.map((p) => (
                   <div key={p.name} className="flex items-start gap-3 text-sm">
@@ -380,7 +380,7 @@ function EndpointCard({ ep }: { ep: Endpoint }) {
 
           {ep.body && ep.body.length > 0 && (
             <div>
-              <h5 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 font-[family-name:var(--font-spacemono)]">Request Body</h5>
+              <h5 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-2 font-[family-name:var(--font-spacemono)]">Request Body</h5>
               <div className="space-y-1.5">
                 {ep.body.map((b) => (
                   <div key={b.name} className="flex items-start gap-3 text-sm">
@@ -439,8 +439,8 @@ export default function DocsPage() {
             {sections.map((s) => (
               <button key={s.id} onClick={() => scrollToSection(s.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition ${activeSection === s.id
-                    ? "bg-[#4ADE80]/10 text-[#4ADE80]"
-                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                  ? "bg-[#4ADE80]/10 text-[#4ADE80]"
+                  : "text-zinc-400 hover:text-white hover:bg-white/5"
                   } font-[family-name:var(--font-spacemono)]`}
               >
                 <s.icon size={16} />

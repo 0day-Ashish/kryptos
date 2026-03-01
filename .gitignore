@@ -9,3 +9,11 @@ backend/.env
 backend/.cache
 .venv
 backend/venv
+
+# Database
+backend/kryptos.db
+
+# Backend — no Node artifacts
+backend/package.json
+backend/package-lock.json
+backend/node_modules/

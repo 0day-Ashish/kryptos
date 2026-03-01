@@ -441,9 +441,9 @@ export default function Home() {
       .then((data) => {
         if (data.on_chain && data.explorer) window.open(data.explorer, "_blank");
         else if (result?.on_chain?.tx_hash) window.open(`https://sepolia.basescan.org/tx/0x${result.on_chain.tx_hash}`, "_blank");
-        else window.open("https://sepolia.basescan.org/address/0x015ffC4Bb2E5238A1646EC8860030bfb86650Ad2", "_blank");
+        else window.open("https://sepolia.basescan.org/address/0xFc3528536bfA705Ae0E40946Fe26A1F86fBAAF74", "_blank");
       })
-      .catch(() => window.open("https://sepolia.basescan.org/address/0x015ffC4Bb2E5238A1646EC8860030bfb86650Ad2", "_blank"))
+      .catch(() => window.open("https://sepolia.basescan.org/address/0xFc3528536bfA705Ae0E40946Fe26A1F86fBAAF74", "_blank"))
       .finally(() => setOnChainLoading(false));
   };
 
@@ -510,15 +510,15 @@ export default function Home() {
   }
 
   // Fund flow recursive renderer
-  const renderFlowNode = (node: FundFlowNode, depth: number = 0): React.JSX.Element => (
-    <div key={node.address + depth} className={`${depth > 0 ? "ml-6 border-l-2 border-zinc-700 pl-4" : ""}`}>
+  const renderFlowNode = (node: FundFlowNode, depth: number = 0, path: string = "0"): React.JSX.Element => (
+    <div key={`${node.address}-${path}`} className={`${depth > 0 ? "ml-6 border-l-2 border-zinc-700 pl-4" : ""}`}>
       <div className="flex items-center gap-2 py-1">
         <div className={`w-2 h-2 rounded-full ${node.category === "mixer" ? "bg-red-500" : node.category === "exchange" ? "bg-blue-500" : "bg-zinc-500"}`} />
         <span className="font-[family-name:var(--font-spacemono)] text-xs text-white">{node.address.slice(0, 10)}...{node.address.slice(-4)}</span>
         {node.label && <span className="text-xs px-1.5 py-0.5 rounded bg-white/10 text-zinc-400">{node.label}</span>}
         {node.value !== undefined && <span className="text-xs text-zinc-400">{node.value.toFixed(4)} ETH</span>}
       </div>
-      {node.children?.map((child) => renderFlowNode(child, depth + 1))}
+      {node.children?.map((child, idx) => renderFlowNode(child, depth + 1, `${path}-${idx}`))}
     </div>
   );
 
@@ -581,7 +581,7 @@ export default function Home() {
               {validationError && <p className="absolute -bottom-5 left-0 text-xs text-red-400 font-[family-name:var(--font-spacemono)]">{validationError}</p>}
               {showHistory && history.length > 0 && !address && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold px-3 pt-2 pb-1 font-[family-name:var(--font-spacemono)]">Recent Searches</p>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold px-3 pt-2 pb-1 font-[family-name:var(--font-spacemono)]">Recent Searches</p>
                   {history.map((h, i) => (
                     <button
                       key={i}
@@ -655,9 +655,9 @@ export default function Home() {
 
               {/* Risk Score Card */}
               <div className={`p-8 rounded-2xl border ${getRiskBg(riskScore)}`}>
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 tracking-wider">
                   <div>
-                    <h2 className="text-3xl font-bold flex items-center gap-3 mb-2">
+                    <h2 className="text-3xl font-bold flex items-center tracking-widest uppercase gap-3 mb-2">
                       Analysis Report
                       {result.sanctions?.is_sanctioned && (
                         <span className="text-xs font-[family-name:var(--font-spacemono)] px-2 py-1 rounded-lg border bg-red-400/10 text-red-400 border-red-400/20 flex items-center gap-1">
@@ -829,7 +829,7 @@ export default function Home() {
                       <thead>
                         <tr className="border-b border-white/10">
                           {["Address", "Label", "Txns", "Sent", "Received", "Total"].map((h) => (
-                            <th key={h} className={`${h === "Address" || h === "Label" ? "text-left" : "text-right"} px-4 py-3 text-xs font-bold text-zinc-500 uppercase tracking-wider font-[family-name:var(--font-spacemono)]`}>{h}</th>
+                            <th key={h} className={`${h === "Address" || h === "Label" ? "text-left" : "text-right"} px-4 py-3 text-xs font-bold text-zinc-500 uppercase tracking-widest font-[family-name:var(--font-spacemono)]`}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -1298,7 +1298,7 @@ export default function Home() {
                     <ShieldAlert size={24} className="text-[#4ADE80]" />
                     <h3 className="font-bold text-lg">{riskLabel || "Analyzing..."}</h3>
                   </div>
-                  <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold font-[family-name:var(--font-spacemono)]">Combined Risk Score</p>
+                  <p className="text-xs text-zinc-500 uppercase tracking-widest font-semibold font-[family-name:var(--font-spacemono)]">Combined Risk Score</p>
                   <p className="text-5xl font-[family-name:var(--font-spacemono)] mt-2 font-bold tracking-tighter">
                     {riskScore}<span className="text-xl text-zinc-500">/100</span>
                   </p>
@@ -1347,7 +1347,7 @@ export default function Home() {
                   </p>
                   {result.flags?.length > 0 && (
                     <div className="mt-2">
-                      <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-2 font-[family-name:var(--font-spacemono)]">Risk Flags</p>
+                      <p className="text-xs text-zinc-500 uppercase tracking-widest font-semibold mb-2 font-[family-name:var(--font-spacemono)]">Risk Flags</p>
                       <div className="flex flex-wrap gap-2">
                         {result.flags.map((flag, i) => (
                           <span key={i} className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border font-medium font-[family-name:var(--font-spacemono)] ${flag.toLowerCase().includes("sanctioned") ? "border-red-400/20 bg-red-400/10 text-red-400" :
@@ -1366,7 +1366,7 @@ export default function Home() {
               {/* Feature Details */}
               {result.feature_summary && Object.keys(result.feature_summary).length > 0 && (
                 <div className="mt-4">
-                  <button onClick={() => setShowFeatures(!showFeatures)} className="flex items-center gap-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider hover:text-white transition-colors font-[family-name:var(--font-spacemono)]">
+                  <button onClick={() => setShowFeatures(!showFeatures)} className="flex items-center gap-2 text-xs font-semibold text-zinc-500 uppercase tracking-widest hover:text-white transition-colors font-[family-name:var(--font-spacemono)]">
                     <ChevronDown size={14} className={`transition-transform ${showFeatures ? "rotate-180" : ""}`} />
                     Feature Details ({Object.keys(result.feature_summary).length} features)
                   </button>

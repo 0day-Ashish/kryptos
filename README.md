@@ -188,9 +188,9 @@ Wallet Address
 
 | Detail | Value |
 |--------|-------|
-| **Contract** | `RiskRegistry` |
+| **Contract** | `RiskRegistryV2` (UUPS Proxy) |
 | **Network** | Base Sepolia (Chain ID: 84532) |
-| **Address** | [`0x015ffC4Bb2E5238A1646EC8860030bfb86650Ad2`](https://sepolia.basescan.org/address/0x015ffC4Bb2E5238A1646EC8860030bfb86650Ad2) |
+| **Address** | [`0xFc3528536bfA705Ae0E40946Fe26A1F86fBAAF74`](https://sepolia.basescan.org/address/0xFc3528536bfA705Ae0E40946Fe26A1F86fBAAF74) |
 
 ---
 

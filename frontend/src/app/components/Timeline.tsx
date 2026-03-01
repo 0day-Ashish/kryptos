@@ -116,7 +116,7 @@ export default function Timeline({ data, native }: TimelineProps) {
 
         {/* Volume sparkline */}
         <div className="mt-4">
-          <p className="text-[10px] text-[var(--muted-fg)] uppercase tracking-wider font-semibold mb-1">
+          <p className="text-[10px] text-[var(--muted-fg)] uppercase tracking-widest font-semibold mb-1">
             Volume ({native})
           </p>
           <div className="flex items-end gap-[2px] h-12">

@@ -478,7 +478,7 @@ export default function BulkScreening() {
 
               {/* Risk Distribution Bar */}
               <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-8">
-                <p className="text-xs text-zinc-400 font-[family-name:var(--font-spacemono)] uppercase tracking-wider mb-3">Risk Distribution</p>
+                <p className="text-xs text-zinc-400 font-[family-name:var(--font-spacemono)] uppercase tracking-widest mb-3">Risk Distribution</p>
                 <div className="flex rounded-full overflow-hidden h-3">
                   {result.summary.high_risk_count > 0 && (
                     <div className="bg-red-400 transition-all" style={{ width: `${(result.summary.high_risk_count / result.summary.successfully_analyzed) * 100}%` }} />
@@ -544,7 +544,7 @@ export default function BulkScreening() {
                     <thead>
                       <tr className="border-b border-white/10">
                         {["Address", "Score", "Label", "Flags", "TXs", "Status"].map((h) => (
-                          <th key={h} className={`${h === "Address" || h === "Flags" ? "text-left" : "text-center"} px-4 py-3 text-xs font-bold text-zinc-500 uppercase tracking-wider font-[family-name:var(--font-spacemono)]`}>
+                          <th key={h} className={`${h === "Address" || h === "Flags" ? "text-left" : "text-center"} px-4 py-3 text-xs font-bold text-zinc-500 uppercase tracking-widest font-[family-name:var(--font-spacemono)]`}>
                             {h}
                           </th>
                         ))}

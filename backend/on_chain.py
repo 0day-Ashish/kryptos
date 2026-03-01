@@ -8,7 +8,7 @@ import time
 import json
 
 # ── Config ──────────────────────────────────────────────────────────────────
-CONTRACT_ADDRESS = "0x015ffC4Bb2E5238A1646EC8860030bfb86650Ad2"
+CONTRACT_ADDRESS = "0xFc3528536bfA705Ae0E40946Fe26A1F86fBAAF74"
 RPC_URL = os.getenv("BASE_SEPOLIA_RPC", "https://base-sepolia-rpc.publicnode.com")
 PRIVATE_KEY = os.getenv("DEPLOYER_PRIVATE_KEY", "")
 
@@ -22,6 +22,18 @@ CONTRACT_ABI = [
             {"internalType": "uint64", "name": "timestamp", "type": "uint64"},
         ],
         "name": "storeReport",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
+    {
+        "inputs": [
+            {"internalType": "bytes32[]", "name": "wallets", "type": "bytes32[]"},
+            {"internalType": "uint8[]", "name": "riskScores", "type": "uint8[]"},
+            {"internalType": "string[]", "name": "ipfsHashes", "type": "string[]"},
+            {"internalType": "uint64[]", "name": "timestamps", "type": "uint64[]"},
+        ],
+        "name": "storeReportsBatch",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function",
@@ -109,4 +121,54 @@ def get_report_from_chain(wallet_address: str) -> dict:
         "on_chain": risk_score > 0,
         "contract": CONTRACT_ADDRESS,
         "explorer": f"https://sepolia.basescan.org/address/{CONTRACT_ADDRESS}",
+    }
+
+
+def store_reports_batch_on_chain(
+    wallet_addresses: list[str],
+    risk_scores: list[int],
+    ipfs_hashes: list[str] | None = None,
+) -> dict:
+    """
+    Batch-store multiple risk reports in a single transaction (V2 feature).
+    Saves gas compared to calling storeReport N times.
+    """
+    if not PRIVATE_KEY:
+        return {"error": "DEPLOYER_PRIVATE_KEY not set – skipping on-chain write"}
+
+    n = len(wallet_addresses)
+    if ipfs_hashes is None:
+        ipfs_hashes = [""] * n
+
+    account = w3.eth.account.from_key(PRIVATE_KEY)
+    wallet_keys = [_wallet_key(addr) for addr in wallet_addresses]
+    timestamps = [int(time.time())] * n
+
+    tx = contract.functions.storeReportsBatch(
+        wallet_keys,
+        risk_scores,
+        ipfs_hashes,
+        timestamps,
+    ).build_transaction(
+        {
+            "from": account.address,
+            "nonce": w3.eth.get_transaction_count(account.address),
+            "gas": 150_000 + 80_000 * n,  # scale gas with batch size
+            "maxFeePerGas": w3.eth.gas_price * 2,
+            "maxPriorityFeePerGas": w3.eth.gas_price,
+        }
+    )
+
+    signed = account.sign_transaction(tx)
+    tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+    receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+
+    hex_hash = tx_hash.hex()
+    print(f"✅ Batch of {n} reports stored on-chain! tx: {hex_hash}")
+
+    return {
+        "tx_hash": hex_hash,
+        "explorer": f"https://sepolia.basescan.org/tx/0x{hex_hash}",
+        "block": receipt["blockNumber"],
+        "count": n,
     }
