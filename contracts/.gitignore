@@ -24,12 +24,14 @@ Thumbs.db
 .vscode/
 .idea/
 
-# ...existing code...
+# Hardhat
+artifacts/
+cache/
+typechain-types/
 
-# Database
-backend/kryptos.db
+# OpenZeppelin upgrades
+.openzeppelin/
 
-# Backend — no Node artifacts
-backend/package.json
-backend/package-lock.json
-backend/node_modules/
+# Coverage
+coverage/
+coverage.json
