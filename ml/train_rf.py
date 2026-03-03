@@ -36,8 +36,11 @@ from sklearn.metrics import (
 
 # Ensure project root is on path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from ml.features import FEATURE_COLUMNS, ANOMALY_COLUMNS, LABEL_COLUMN
-from ml.train_iforest import load_iforest, compute_anomaly_features
+from ml.features import (
+    FEATURE_COLUMNS, ANOMALY_COLUMNS, LABEL_COLUMN,
+    RAW_TO_FEATURE_MAP, WEI_COLUMNS,
+)
+from ml.train_iforest import load_iforest, compute_anomaly_features, preprocess_raw_csv
 
 logging.basicConfig(
     level=logging.INFO,
@@ -52,9 +55,116 @@ BASE_DIR = os.path.join(os.path.dirname(__file__), "..")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 MODEL_DIR = os.path.join(BASE_DIR, "models")
 
-SCAM_CSV = os.path.join(DATA_DIR, "scam_wallets.csv")
-HEALTHY_CSV = os.path.join(DATA_DIR, "healthy_wallets.csv")
+SCAM_CSV = os.path.join(DATA_DIR, "scam_wallets_full.csv")
+HEALTHY_CSV = os.path.join(DATA_DIR, "healthy_wallet_features_1.csv")
 RF_MODEL_PATH = os.path.join(MODEL_DIR, "random_forest.pkl")
+
+# Threshold (in raw units) above which a volume column is assumed to be in wei.
+# Any meaningful ETH amount (>0.001 ETH) in wei is > 1e15, while ETH values
+# for most wallets stay well under 1e10.
+WEI_DETECTION_THRESHOLD = 1e12
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Helpers: per-file preprocessing
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _is_wei(series: pd.Series) -> bool:
+    """Return True if a volume column looks like wei (median > threshold)."""
+    median = series.dropna().median()
+    return median > WEI_DETECTION_THRESHOLD
+
+
+def _compute_derived_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compute any missing derived columns that the pipeline needs.
+
+    Works on *raw* column names (before renaming).
+    """
+    # total_volume = total_out_volume + total_in_volume
+    if "total_volume" not in df.columns:
+        out_col = "total_out_volume" if "total_out_volume" in df.columns else "total_out"
+        in_col = "total_in_volume" if "total_in_volume" in df.columns else "total_in"
+        df["total_volume"] = df[out_col].fillna(0) + df[in_col].fillna(0)
+        logger.info("    Computed total_volume = total_out + total_in")
+
+    # tx_frequency = total_tx_count / lifetime_seconds
+    if "tx_frequency" not in df.columns:
+        df["tx_frequency"] = np.where(
+            df["lifetime_seconds"] > 0,
+            df["total_tx_count"] / df["lifetime_seconds"],
+            0.0,
+        )
+        logger.info("    Computed tx_frequency = total_tx_count / lifetime_seconds")
+
+    # counterparty_ratio = (unique_receivers + unique_senders) / total_tx_count
+    recv_col = "unique_receivers" if "unique_receivers" in df.columns else "fan_out"
+    send_col = "unique_senders" if "unique_senders" in df.columns else "fan_in"
+    if "counterparty_ratio" not in df.columns:
+        df["counterparty_ratio"] = np.where(
+            df["total_tx_count"] > 0,
+            (df[recv_col] + df[send_col]) / df["total_tx_count"],
+            0.0,
+        )
+        logger.info("    Computed counterparty_ratio = (receivers + senders) / total_tx_count")
+
+    return df
+
+
+def _preprocess_single_csv(
+    df: pd.DataFrame,
+    label_value: int,
+    source_name: str,
+) -> pd.DataFrame:
+    """
+    Preprocess a single labeled CSV into pipeline-standard format.
+
+    Handles:
+        1. Assigns label if missing.
+        2. Auto-detects wei vs ETH volumes and converts if necessary.
+        3. Computes any missing derived columns.
+        4. Renames raw → pipeline columns.
+        5. Fills NaNs with 0.
+        6. Validates all FEATURE_COLUMNS present.
+    """
+    logger.info(f"  Preprocessing {source_name}  ({len(df):,} rows, {len(df.columns)} cols)")
+
+    # 1. Label
+    if LABEL_COLUMN not in df.columns:
+        df[LABEL_COLUMN] = label_value
+        logger.info(f"    Added label = {label_value}")
+
+    # 2. Wei → ETH (auto-detect per column)
+    for col in WEI_COLUMNS:
+        if col in df.columns and _is_wei(df[col]):
+            df[col] = df[col].astype(float) / 1e18
+            logger.info(f"    Converted {col} from wei → ETH")
+        elif col in df.columns:
+            logger.info(f"    {col} already in ETH — skipping conversion")
+
+    # 3. Derived columns
+    df = _compute_derived_columns(df)
+
+    # 4. Rename
+    df = df.rename(columns=RAW_TO_FEATURE_MAP)
+
+    # 5. Fill NaNs / Inf
+    present_features = [c for c in FEATURE_COLUMNS if c in df.columns]
+    df[present_features] = (
+        df[present_features]
+        .replace([np.inf, -np.inf], np.nan)
+        .fillna(0)
+    )
+
+    # 6. Validate
+    missing = [c for c in FEATURE_COLUMNS if c not in df.columns]
+    if missing:
+        raise ValueError(
+            f"Missing feature columns in {source_name} after preprocessing: {missing}"
+        )
+
+    logger.info(f"    ✓ {source_name} ready — {len(df):,} rows, all {len(FEATURE_COLUMNS)} features present")
+    return df
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -68,16 +178,16 @@ def load_labeled_data(
     """
     Load and combine scam + healthy labeled datasets.
 
-    If the CSV doesn't have a 'label' column, it is created automatically:
-        scam_wallets.csv    → label = 1
-        healthy_wallets.csv → label = 0
+    Each file is preprocessed independently to handle different formats
+    (e.g., healthy volumes in ETH, scam volumes in WEI; healthy missing
+    some derived columns).
 
     Parameters
     ----------
     scam_csv : str
-        Path to the scam wallets CSV (50K rows).
+        Path to scam wallets CSV.
     healthy_csv : str
-        Path to the healthy wallets CSV (50K rows).
+        Path to healthy wallets CSV.
 
     Returns
     -------
@@ -86,27 +196,19 @@ def load_labeled_data(
     """
     logger.info(f"Loading scam data    → {scam_csv}")
     scam_df = pd.read_csv(scam_csv)
+    scam_df = _preprocess_single_csv(scam_df, label_value=1, source_name="scam")
 
     logger.info(f"Loading healthy data → {healthy_csv}")
     healthy_df = pd.read_csv(healthy_csv)
-
-    # Ensure label column exists
-    if LABEL_COLUMN not in scam_df.columns:
-        scam_df[LABEL_COLUMN] = 1
-    if LABEL_COLUMN not in healthy_df.columns:
-        healthy_df[LABEL_COLUMN] = 0
+    healthy_df = _preprocess_single_csv(healthy_df, label_value=0, source_name="healthy")
 
     combined = pd.concat([scam_df, healthy_df], ignore_index=True)
 
-    # Validate feature columns
-    missing = [c for c in FEATURE_COLUMNS if c not in combined.columns]
-    if missing:
-        raise ValueError(f"Missing feature columns in labeled data: {missing}")
-
     logger.info(
         f"  Combined: {len(combined):,} wallets  |  "
-        f"scam={len(scam_df):,}  |  healthy={len(healthy_df):,}"
+        f"scam={len(scam_df):,}  healthy={len(healthy_df):,}"
     )
+    logger.info(f"  Label distribution:\n{combined[LABEL_COLUMN].value_counts().to_string()}")
     return combined
 
 
@@ -261,7 +363,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--healthy", type=str, default=HEALTHY_CSV,
-        help="Path to healthy_wallets.csv",
+        help="Path to healthy_wallet_features_1.csv",
     )
     args = parser.parse_args()
 
