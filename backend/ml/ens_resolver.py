@@ -2,6 +2,8 @@
 ens_resolver.py — Resolve ENS names to Ethereum addresses and vice versa.
 Uses public ENS API (no dependency on web3 provider for resolution).
 """
+from __future__ import annotations
+
 import requests
 from typing import Optional
 import re

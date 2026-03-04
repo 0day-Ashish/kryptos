@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from fastapi import FastAPI, Query, Body, Depends, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -300,8 +302,9 @@ def analyze_wallet(request: Request, address: str, chain_id: int = Query(default
     neighbor_txns = fetch_neighbor_transactions(neighbors, chain_id, max_per_neighbor=50)
     print(f"   Fetched data for {len(neighbor_txns)} neighbors")
 
-    # Step 5: ML scoring
+    # Step 5: ML scoring (pre-trained IF+RF + local IF + heuristics)
     print("🧠 Step 5: Running ML scorer...")
+    trained_model_result = None
     try:
         result = wallet_scorer.score_wallet(
             target_address, all_target_txns, neighbor_txns, chain_id
@@ -310,11 +313,17 @@ def analyze_wallet(request: Request, address: str, chain_id: int = Query(default
         risk_label = result["risk_label"]
         ml_raw_score = result["ml_raw_score"]
         heuristic_score = result["heuristic_score"]
+        trained_model_result = result.get("trained_model")
         flags = result["flags"]
         feature_summary = result["feature_summary"]
         neighbors_analyzed = result["neighbors_analyzed"]
         print(f"   Score: {risk_score}/100 ({risk_label})")
-        print(f"   ML: {ml_raw_score}, Heuristic: {heuristic_score}")
+        print(f"   Local-IF: {ml_raw_score}, Heuristic: {heuristic_score}")
+        if trained_model_result:
+            print(f"   Trained model → scam_prob: {trained_model_result['trained_scam_probability']:.4f}, "
+                  f"risk: {trained_model_result['trained_risk_score']}/100")
+        else:
+            print("   Trained models not available — using local-IF fallback")
         print(f"   Flags: {flags}")
     except Exception as e:
         print(f"⚠️ ML scoring error (non-fatal): {e}")
@@ -500,6 +509,7 @@ def analyze_wallet(request: Request, address: str, chain_id: int = Query(default
         "risk_label": risk_label,
         "ml_raw_score": ml_raw_score,
         "heuristic_score": heuristic_score,
+        "trained_model": trained_model_result,
         "flags": flags,
         "feature_summary": feature_summary,
         "neighbors_analyzed": neighbors_analyzed,

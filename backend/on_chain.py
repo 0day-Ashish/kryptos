@@ -1,6 +1,7 @@
 """
 on_chain.py — Write and read risk reports on the RiskRegistry contract (Base).
 """
+from __future__ import annotations
 
 from web3 import Web3
 import os

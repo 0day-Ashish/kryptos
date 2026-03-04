@@ -1,16 +1,35 @@
 """
-ML-based wallet risk scoring using Isolation Forest + heuristic boosting.
+ML-based wallet risk scoring.
+
+Primary signal: Pre-trained Isolation Forest (1M wallets) + Random Forest (100K
+labeled wallets) loaded from models/*.pkl via trained_model_bridge.
+
+Fallback signal: Per-request Isolation Forest fitted on the local neighborhood
+(kept for resilience if model files are missing).
+
+Heuristic boosts: Rule-based patterns (burst ratio, round values, etc.) that
+catch scam signals not captured in the training data.
+
+Blend (when trained models available):
+    60% trained-model risk_score  +  10% local-IF score  +  30% heuristics
+Fallback blend (no trained models):
+    70% local-IF score  +  30% heuristics
 """
+import logging
 import numpy as np
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import RobustScaler
 from .features import extract_wallet_features, FEATURE_COLUMNS
+from .trained_model_bridge import trained_predictor
+
+logger = logging.getLogger(__name__)
 
 
 class WalletScorer:
-    """Scores a single wallet using Isolation Forest anomaly detection + heuristic rules."""
+    """Scores a single wallet using pre-trained models + local IF + heuristic rules."""
 
     def __init__(self):
+        # Local per-request IF (fallback / secondary signal)
         self.model = IsolationForest(
             n_estimators=200,
             contamination=0.15,
@@ -20,6 +39,14 @@ class WalletScorer:
         )
         self.scaler = RobustScaler()
         self._is_fitted = False
+
+        # Eagerly load pre-trained models so first request isn't slow
+        if trained_predictor.available:
+            try:
+                trained_predictor.load_models()
+                logger.info("Pre-trained IF+RF models loaded — using hybrid scoring")
+            except Exception as e:
+                logger.warning("Pre-trained models failed to load: %s", e)
 
     def score_wallet(
         self,
@@ -73,18 +100,41 @@ class WalletScorer:
         raw_scores = self.model.decision_function(X_scaled)
         target_raw = raw_scores[0]
 
-        # Normalize to 0-100 (higher = more risky)
+        # Normalize local IF to 0-100 (higher = more risky)
         score_min = float(np.min(raw_scores))
         score_max = float(np.max(raw_scores))
         score_range = score_max - score_min if score_max != score_min else 1.0
-        ml_score = (1 - (target_raw - score_min) / score_range) * 100
-        ml_score = float(np.clip(ml_score, 0, 100))
+        local_if_score = (1 - (target_raw - score_min) / score_range) * 100
+        local_if_score = float(np.clip(local_if_score, 0, 100))
 
         # Heuristic boosts
         heuristic_boost = self._compute_heuristic_boost(target_features)
 
-        # Combine: 70% ML + 30% heuristics
-        final_score = int(np.clip(ml_score * 0.7 + heuristic_boost * 0.3, 0, 100))
+        # ── Pre-trained model scoring (primary signal) ───────────────
+        trained_result = None
+        trained_risk = None
+        if trained_predictor.available:
+            try:
+                trained_result = trained_predictor.predict(target_features)
+                trained_risk = trained_result["trained_risk_score"]
+                logger.debug(
+                    "Trained model scores — anomaly: %.4f, scam_prob: %.4f, risk: %.1f",
+                    trained_result["trained_anomaly_score"],
+                    trained_result["trained_scam_probability"],
+                    trained_risk,
+                )
+            except Exception as e:
+                logger.warning("Pre-trained prediction failed: %s", e)
+
+        # ── Blend ────────────────────────────────────────────────────
+        if trained_risk is not None:
+            # 60% trained model + 10% local IF + 30% heuristics
+            ml_score = trained_risk * 0.6 + local_if_score * 0.1 + heuristic_boost * 0.3
+        else:
+            # Fallback: 70% local IF + 30% heuristics (original behavior)
+            ml_score = local_if_score * 0.7 + heuristic_boost * 0.3
+
+        final_score = int(np.clip(ml_score, 0, 100))
 
         # Label
         if final_score >= 75:
@@ -100,8 +150,9 @@ class WalletScorer:
         return {
             "risk_score": final_score,
             "risk_label": label,
-            "ml_raw_score": round(float(ml_score), 2),
+            "ml_raw_score": round(float(local_if_score), 2),
             "heuristic_score": round(float(heuristic_boost), 2),
+            "trained_model": trained_result,  # None if models not loaded
             "flags": flags,
             "feature_summary": {
                 "tx_count": target_features["tx_count"],
