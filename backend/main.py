@@ -21,11 +21,11 @@ load_dotenv()
 # ── Database + Auth ──────────────────────────────────────────────────────────
 try:
     from backend.db.models import init_db, get_db, SharedReport
-    from backend.auth.routes import router as auth_router
+    from backend.auth.routes import router as auth_router, users_router
     from backend.auth.watchlist_routes import router as watchlist_router
 except ModuleNotFoundError:
     from db.models import init_db, get_db, SharedReport
-    from auth.routes import router as auth_router
+    from auth.routes import router as auth_router, users_router
     from auth.watchlist_routes import router as watchlist_router
 
 try:
@@ -153,6 +153,7 @@ def health_check():
 # ── Initialize DB + register auth/watchlist routers ──────────────────────────
 init_db()
 app.include_router(auth_router)
+app.include_router(users_router)
 app.include_router(watchlist_router)
 
 

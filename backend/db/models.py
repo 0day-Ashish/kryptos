@@ -1,6 +1,8 @@
 """
-Kryptos – SQLite database models (SQLAlchemy).
-Tables: users, watchlist_items
+Kryptos – Database models (SQLAlchemy).
+Tables: users, watchlist_items, shared_reports
+
+Supports Neon PostgreSQL (via DATABASE_URL env var) with SQLite fallback.
 """
 
 from datetime import datetime, timezone
@@ -11,10 +13,17 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 import os
 
+# ── Database connection ─────────────────────────────────────────────────────
+# Prefer DATABASE_URL (Neon Postgres) from environment; fall back to SQLite.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, '..', 'kryptos.db')}"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    f"sqlite:///{os.path.join(BASE_DIR, '..', 'kryptos.db')}"
+)
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# SQLite needs check_same_thread; Postgres needs pool_pre_ping for serverless
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, connect_args=connect_args, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -77,6 +86,34 @@ class SharedReport(Base):
     data = Column(Text, nullable=False)  # Full JSON analysis result
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     views = Column(Integer, default=0)
+
+
+class DiscordLinkRequest(Base):
+    """One-time Discord wallet-link challenges."""
+    __tablename__ = "discord_link_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    discord_id = Column(String(64), nullable=False, index=True)
+    token = Column(String(64), unique=True, nullable=False, index=True)
+    nonce = Column(String(64), nullable=False)
+    message = Column(Text, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    used_at = Column(DateTime, nullable=True)
+    wallet_address = Column(String(42), nullable=True)
+
+
+class DiscordWalletLink(Base):
+    """Maps a Discord user to a linked wallet and premium status."""
+    __tablename__ = "discord_wallet_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    discord_id = Column(String(64), unique=True, nullable=False, index=True)
+    wallet_address = Column(String(42), nullable=False, index=True)
+    linked_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_verified_at = Column(DateTime, nullable=True)
+    is_premium = Column(Boolean, default=False)
+    premium_expires_at = Column(DateTime, nullable=True)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
