@@ -4,6 +4,12 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ethers } from 'ethers';
+
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
 import { ShieldAlert, ShieldCheck, Loader2, Link } from 'lucide-react';
 // Component that actually reads search params
 function VerificationProcess() {
