@@ -288,7 +288,7 @@ export default function Home() {
       .catch(() => { });
     setHistory(loadHistory());
   }, []);
-
+                                                  
   // Address / ENS validation
   const validateAddress = useCallback((addr: string): string => {
     if (!addr) return "";
