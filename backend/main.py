@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from fastapi import FastAPI, Query, Body, Depends, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -55,7 +53,6 @@ try:
     from backend.ml.token_scanner import scan_token
     from backend.ml.contract_auditor import audit_contract
     from backend.ml.watchlist import quick_score
-    from backend.ml.discord_webhook import send_scam_alert_webhook
     from backend.report_pdf import generate_pdf_report
     from backend.on_chain import store_report_on_chain, get_report_from_chain
     from backend.ipfs import pin_report_to_ipfs
@@ -86,7 +83,6 @@ except ModuleNotFoundError:
     from ml.token_scanner import scan_token
     from ml.contract_auditor import audit_contract
     from ml.watchlist import quick_score
-    from ml.discord_webhook import send_scam_alert_webhook
     from report_pdf import generate_pdf_report
     from on_chain import store_report_on_chain, get_report_from_chain
     from ipfs import pin_report_to_ipfs
@@ -505,7 +501,7 @@ def analyze_wallet(request: Request, address: str, chain_id: int = Query(default
 
     print(f"{'='*60}\n")
 
-    final_result = {
+    return {
         "address": target_address,
         "ens_name": ens_name,
         "risk_score": risk_score,
@@ -541,13 +537,6 @@ def analyze_wallet(request: Request, address: str, chain_id: int = Query(default
         "community_risk_modifier": community_risk,
         "on_chain": on_chain,
     }
-    
-    # Send Discord Webhook if this is a high-risk wallet 
-    if "Critical Risk" in risk_label or "High Risk" in risk_label or risk_score >= 80:
-        print(f"🚨 Firing Discord Webhook for scam wallet! Score: {risk_score}")
-        send_scam_alert_webhook(final_result)
-
-    return final_result
 
 
 @app.get("/balance/{address}")

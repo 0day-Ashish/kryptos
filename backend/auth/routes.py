@@ -11,8 +11,6 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import Optional
-from typing import Optional
 
 try:
     from backend.db.models import (
@@ -91,7 +89,7 @@ class PremiumStatusResponse(BaseModel):
     discord_id: str
     wallet_address: str
     is_premium: bool
-    premium_expires_at: Optional[str] = None
+    premium_expires_at: str | None
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
