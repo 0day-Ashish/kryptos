@@ -17,3 +17,7 @@ backend/kryptos.db
 backend/package.json
 backend/package-lock.json
 backend/node_modules/
+src/node_modules/
+node_modules/
+.next/
+*.log
