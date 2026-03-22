@@ -12,7 +12,7 @@ It supports two modes:
 Built-in safeguards:
 - Rate limiting (5 calls/sec max on free tier)
 - Pagination (Etherscan caps at 10,000 results per call)
-- Neighbor cap (don't expand more than MAX_NEIGHBORS)
+- Neighbor cap (don't expand more than MAX_NEIGHBORS)\
 - Graceful error handling (network failures, bad responses)
 """
 

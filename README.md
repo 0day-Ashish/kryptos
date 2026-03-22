@@ -451,7 +451,7 @@ Kryptos uses **Sign-In with Ethereum (SIWE)** for wallet-based authentication:
 3. Backend verifies the Ethereum signature and issues a JWT (72h expiry)
 4. Protected routes (watchlist) require the JWT in the `Authorization` header
 
-User data and watchlists are stored in a local SQLite database via SQLAlchemy.
+User data and watchlists are stored in a local SQLite  database via SQLAlchemy.
 
 ---
 
