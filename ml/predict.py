@@ -4,6 +4,10 @@ predict.py — Inference module for the Kryptos hybrid pipeline.
 Loads both trained models (Isolation Forest + Random Forest) and
 predicts scam risk for any wallet given its feature vector.
 
+Supports both the original 15-feature RF and the enriched 81-feature
+RF (with graph embeddings + cluster features). Auto-detects which model
+is loaded via the metadata file.
+
 Usage:
     # As a module
     from ml.predict import predict_wallet_risk
@@ -15,13 +19,17 @@ Usage:
 
 import os
 import sys
+import json
 import logging
 import numpy as np
 import pandas as pd
 import joblib
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from ml.features import FEATURE_COLUMNS, ANOMALY_COLUMNS, ANOMALY_THRESHOLD
+from ml.features import (
+    FEATURE_COLUMNS, ANOMALY_COLUMNS, ANOMALY_THRESHOLD,
+    GRAPH_COLUMNS, ALL_FEATURE_COLUMNS,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,6 +46,7 @@ MODEL_DIR = os.path.join(BASE_DIR, "models")
 IFOREST_MODEL_PATH = os.path.join(MODEL_DIR, "isolation_forest.pkl")
 IFOREST_SCALER_PATH = os.path.join(MODEL_DIR, "iforest_scaler.pkl")
 RF_MODEL_PATH = os.path.join(MODEL_DIR, "random_forest.pkl")
+RF_META_PATH = os.path.join(MODEL_DIR, "random_forest_meta.json")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -49,6 +58,9 @@ class WalletRiskPredictor:
     Production predictor running both stages:
         Stage 1: Isolation Forest  → anomaly_score + anomaly_flag
         Stage 2: Random Forest     → scam_probability + risk_score
+
+    Auto-detects enriched model (with graph features) via metadata file.
+    When graph features aren't provided, they default to 0.
     """
 
     def __init__(self):
@@ -56,23 +68,59 @@ class WalletRiskPredictor:
         self._scaler = None
         self._rf = None
         self._loaded = False
+        self._enriched = False
+        self._rf_feature_cols = FEATURE_COLUMNS + ANOMALY_COLUMNS  # default
 
     def load_models(
         self,
         iforest_path: str = IFOREST_MODEL_PATH,
         scaler_path: str = IFOREST_SCALER_PATH,
         rf_path: str = RF_MODEL_PATH,
+        meta_path: str = RF_META_PATH,
     ):
         """Load all persisted models from disk."""
         self._iforest = joblib.load(iforest_path)
         self._scaler = joblib.load(scaler_path)
         self._rf = joblib.load(rf_path)
+
+        # Detect enriched model via metadata
+        if os.path.isfile(meta_path):
+            try:
+                with open(meta_path) as f:
+                    meta = json.load(f)
+                if meta.get("model_type") == "enriched_random_forest":
+                    self._enriched = True
+                    self._rf_feature_cols = meta["feature_columns"]
+                    logger.info(
+                        f"Enriched RF detected: {len(self._rf_feature_cols)} features"
+                    )
+            except Exception as e:
+                logger.warning(f"Could not read RF metadata: {e}")
+
+        if not self._enriched:
+            self._rf_feature_cols = FEATURE_COLUMNS + ANOMALY_COLUMNS
+            logger.info(f"Standard RF: {len(self._rf_feature_cols)} features")
+
         self._loaded = True
         logger.info("All models loaded successfully")
 
     def _ensure_loaded(self):
         if not self._loaded:
             self.load_models()
+
+    def _build_rf_features(self, df: pd.DataFrame, wallet_features: dict = None) -> pd.DataFrame:
+        """
+        Build the RF feature DataFrame. Adds graph columns (zeroed) if the
+        enriched model is loaded and the columns are missing.
+        """
+        for col in self._rf_feature_cols:
+            if col not in df.columns:
+                # Zero-fill missing graph features
+                if wallet_features and col in wallet_features:
+                    df[col] = wallet_features[col]
+                else:
+                    df[col] = 0.0
+        return df[self._rf_feature_cols]
 
     # ──────────────────────────────────────────────────────────────────────
     # Single wallet prediction
@@ -85,15 +133,8 @@ class WalletRiskPredictor:
         Parameters
         ----------
         wallet_features : dict
-            Keys matching FEATURE_COLUMNS.  Example::
-
-                {
-                    "fan_out": 120,
-                    "fan_in": 3,
-                    "total_in": 450.0,
-                    "total_out": 448.5,
-                    ...
-                }
+            Keys matching FEATURE_COLUMNS. May optionally include graph
+            features (emb_0..emb_63, cluster_size, cluster_scam_ratio).
 
         Returns
         -------
@@ -121,8 +162,7 @@ class WalletRiskPredictor:
         df["anomaly_score"] = anomaly_score
         df["anomaly_flag"] = anomaly_flag
 
-        rf_features = FEATURE_COLUMNS + ANOMALY_COLUMNS
-        X_rf = df[rf_features]
+        X_rf = self._build_rf_features(df, wallet_features)
 
         scam_probability = float(self._rf.predict_proba(X_rf)[0][1])
         risk_score = round(scam_probability * 100, 2)
@@ -145,7 +185,7 @@ class WalletRiskPredictor:
         Parameters
         ----------
         wallets_df : pd.DataFrame
-            Must contain FEATURE_COLUMNS.
+            Must contain FEATURE_COLUMNS. May optionally include graph columns.
 
         Returns
         -------
@@ -163,8 +203,8 @@ class WalletRiskPredictor:
         df["anomaly_flag"] = (df["anomaly_score"] < ANOMALY_THRESHOLD).astype(int)
 
         # Stage 2
-        rf_features = FEATURE_COLUMNS + ANOMALY_COLUMNS
-        X_rf = df[rf_features].replace([np.inf, -np.inf], np.nan).fillna(0)
+        X_rf = self._build_rf_features(df)
+        X_rf = X_rf.replace([np.inf, -np.inf], np.nan).fillna(0)
         df["scam_probability"] = self._rf.predict_proba(X_rf)[:, 1]
         df["risk_score"] = (df["scam_probability"] * 100).round(2)
 

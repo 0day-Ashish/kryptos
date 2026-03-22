@@ -85,3 +85,23 @@ LABEL_COLUMN = "label"
 # 0.0 is the natural decision boundary for Isolation Forest.
 # ══════════════════════════════════════════════════════════════════════════════
 ANOMALY_THRESHOLD = 0.0
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Graph-derived features (Stage 3 — Node2Vec embeddings + cluster features)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# 64-dimensional Node2Vec wallet embeddings
+EMBEDDING_COLUMNS = [f"emb_{i}" for i in range(64)]
+
+# Cluster-level signals (cluster_id is excluded — it's categorical, not ordinal)
+CLUSTER_COLUMNS = [
+    "cluster_size",
+    "cluster_scam_ratio",
+]
+
+# All graph-derived columns combined
+GRAPH_COLUMNS = EMBEDDING_COLUMNS + CLUSTER_COLUMNS
+
+# Full feature vector for the enriched Random Forest
+# = 13 base + 2 anomaly + 64 embeddings + 2 cluster = 81 features
+ALL_FEATURE_COLUMNS = FEATURE_COLUMNS + ANOMALY_COLUMNS + GRAPH_COLUMNS

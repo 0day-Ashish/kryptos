@@ -1,0 +1,69 @@
+{
+  "model_type": "standard_random_forest",
+  "n_features": 15,
+  "feature_columns": [
+    "fan_out",
+    "fan_in",
+    "total_out",
+    "total_in",
+    "total_volume",
+    "out_tx_count",
+    "in_tx_count",
+    "total_tx_count",
+    "lifetime_seconds",
+    "tx_frequency",
+    "counterparty_ratio",
+    "out_in_volume_ratio",
+    "pass_through_ratio",
+    "anomaly_score",
+    "anomaly_flag"
+  ],
+  "base_features": [
+    "fan_out",
+    "fan_in",
+    "total_out",
+    "total_in",
+    "total_volume",
+    "out_tx_count",
+    "in_tx_count",
+    "total_tx_count",
+    "lifetime_seconds",
+    "tx_frequency",
+    "counterparty_ratio",
+    "out_in_volume_ratio",
+    "pass_through_ratio"
+  ],
+  "anomaly_features": [
+    "anomaly_score",
+    "anomaly_flag"
+  ],
+  "embedding_features": [],
+  "cluster_features": [],
+  "metrics": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "roc_auc": 1.0,
+    "cv_roc_auc_mean": 1.0,
+    "cv_roc_auc_std": 0.0,
+    "confusion_matrix": [
+      [
+        20000,
+        0
+      ],
+      [
+        0,
+        6617
+      ]
+    ],
+    "group_importances": {
+      "base_behavioral": 0.9951,
+      "anomaly_if": 0.0049
+    },
+    "training_time_seconds": 7.7,
+    "n_train": 106466,
+    "n_test": 26617,
+    "n_features": 15
+  }
+}

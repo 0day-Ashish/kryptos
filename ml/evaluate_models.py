@@ -2,11 +2,16 @@
 evaluate_models.py — Evaluate accuracy of the trained Kryptos ML models.
 
 Loads the saved Isolation Forest + Random Forest from models/ and runs
-them against the labeled scam/healthy wallet datasets with a held-out
-test split. Reports:
+them against the labeled wallet datasets with a held-out test split.
+
+Supports both the standard RF (15 features) and the enriched RF (81
+features with graph embeddings + cluster signals). Auto-detects which
+model is loaded via the metadata file.
+
+Reports:
     - Accuracy, Precision, Recall, F1-Score, ROC-AUC
     - Confusion Matrix
-    - Feature Importances
+    - Feature Importances (with group breakdown)
     - Per-threshold sweep to find optimal cutoff
 
 Usage:
@@ -15,6 +20,7 @@ Usage:
 
 import os
 import sys
+import json
 import logging
 import numpy as np
 import pandas as pd
@@ -27,7 +33,10 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from ml.features import FEATURE_COLUMNS, ANOMALY_COLUMNS, ANOMALY_THRESHOLD, LABEL_COLUMN
+from ml.features import (
+    FEATURE_COLUMNS, ANOMALY_COLUMNS, ANOMALY_THRESHOLD, LABEL_COLUMN,
+    EMBEDDING_COLUMNS, CLUSTER_COLUMNS, GRAPH_COLUMNS, ALL_FEATURE_COLUMNS,
+)
 from ml.train_iforest import compute_anomaly_features, load_iforest
 from ml.train_rf import load_labeled_data, load_rf
 
@@ -45,6 +54,21 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 IFOREST_MODEL_PATH = os.path.join(MODEL_DIR, "isolation_forest.pkl")
 IFOREST_SCALER_PATH = os.path.join(MODEL_DIR, "iforest_scaler.pkl")
 RF_MODEL_PATH = os.path.join(MODEL_DIR, "random_forest.pkl")
+RF_META_PATH = os.path.join(MODEL_DIR, "random_forest_meta.json")
+ENRICHED_CSV = os.path.join(DATA_DIR, "wallet_features_with_clusters.csv")
+
+
+def _load_rf_metadata():
+    """Load RF metadata to detect enriched model."""
+    if os.path.isfile(RF_META_PATH):
+        try:
+            with open(RF_META_PATH) as f:
+                meta = json.load(f)
+            if meta.get("model_type") == "enriched_random_forest":
+                return meta
+        except Exception:
+            pass
+    return None
 
 
 def load_all_models():
@@ -127,20 +151,34 @@ def evaluate_isolation_forest(iforest, scaler, df):
 def evaluate_random_forest(rf, iforest, scaler, df, test_size=0.2):
     """
     Evaluate the Random Forest on a held-out test split.
-    Uses the same preprocessing as training: IF enrichment → RF prediction.
+    Auto-detects enriched model and uses appropriate feature set.
     """
+    meta = _load_rf_metadata()
+    enriched = meta is not None
+
+    model_label = "ENRICHED" if enriched else "STANDARD"
     print("=" * 65)
-    print("  STAGE 2 — RANDOM FOREST EVALUATION")
+    print(f"  STAGE 2 — RANDOM FOREST EVALUATION ({model_label})")
     print("=" * 65)
 
     # Enrich with anomaly features
-    enriched = compute_anomaly_features(df, iforest, scaler)
+    enriched_df = compute_anomaly_features(df, iforest, scaler)
 
-    feature_cols = FEATURE_COLUMNS + ANOMALY_COLUMNS
-    X = enriched[feature_cols].replace([np.inf, -np.inf], np.nan).fillna(0)
-    y = enriched[LABEL_COLUMN].astype(int)
+    # Determine feature set
+    if enriched and meta:
+        feature_cols = meta["feature_columns"]
+    else:
+        feature_cols = FEATURE_COLUMNS + ANOMALY_COLUMNS
 
-    # Stratified train/test split — evaluate on data the model hasn't seen
+    # Zero-fill any missing columns (graph features may be missing in standard data)
+    for col in feature_cols:
+        if col not in enriched_df.columns:
+            enriched_df[col] = 0.0
+
+    X = enriched_df[feature_cols].replace([np.inf, -np.inf], np.nan).fillna(0)
+    y = enriched_df[LABEL_COLUMN].astype(int)
+
+    # Stratified train/test split
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=42, stratify=y,
     )
@@ -148,8 +186,9 @@ def evaluate_random_forest(rf, iforest, scaler, df, test_size=0.2):
     print(f"  Train split   : {len(y_train):,}")
     print(f"  Test split    : {len(y_test):,}  (evaluation set)")
     print(f"  Test scam     : {y_test.sum():,}  |  Test healthy : {(1 - y_test).sum():,}")
+    print(f"  Features      : {len(feature_cols)}")
 
-    # Predict on test set only
+    # Predict on test set
     y_pred = rf.predict(X_test)
     y_proba = rf.predict_proba(X_test)[:, 1]
 
@@ -182,10 +221,23 @@ def evaluate_random_forest(rf, iforest, scaler, df, test_size=0.2):
     # Feature importances
     importances = pd.Series(rf.feature_importances_, index=feature_cols).sort_values(ascending=False)
     print("  Top Feature Importances:")
-    for feat, imp in importances.head(10).items():
+    for feat, imp in importances.head(15).items():
         bar = "█" * int(imp * 50)
         print(f"    {feat:<25s} {imp:.4f}  {bar}")
     print()
+
+    # Group importances for enriched model
+    if enriched:
+        base_imp = importances[[c for c in FEATURE_COLUMNS if c in importances.index]].sum()
+        anom_imp = importances[[c for c in ANOMALY_COLUMNS if c in importances.index]].sum()
+        emb_imp = importances[[c for c in EMBEDDING_COLUMNS if c in importances.index]].sum()
+        clust_imp = importances[[c for c in CLUSTER_COLUMNS if c in importances.index]].sum()
+        print("  Feature Group Importances:")
+        print(f"    Base behavioral : {base_imp:.4f}")
+        print(f"    Anomaly (IF)    : {anom_imp:.4f}")
+        print(f"    Embeddings      : {emb_imp:.4f}")
+        print(f"    Cluster         : {clust_imp:.4f}")
+        print()
 
     return {
         "accuracy": acc, "precision": prec, "recall": rec,
@@ -259,11 +311,22 @@ def main():
     # 1. Load models
     iforest, scaler, rf = load_all_models()
 
-    # 2. Load labeled data (scam + healthy)
+    # 2. Load data
     print("=" * 65)
-    print("  LOADING LABELED DATA")
+    print("  LOADING DATA")
     print("=" * 65)
-    labeled_df = load_labeled_data()
+
+    meta = _load_rf_metadata()
+    enriched_mode = meta is not None
+
+    if enriched_mode and os.path.isfile(ENRICHED_CSV):
+        # Use enriched dataset for enriched model evaluation
+        from ml.train_rf_enriched import load_enriched_data
+        labeled_df = load_enriched_data(ENRICHED_CSV)
+        print(f"  Using enriched dataset: {ENRICHED_CSV}")
+    else:
+        labeled_df = load_labeled_data()
+        print(f"  Using standard scam/healthy datasets")
     total = len(labeled_df)
     n_scam = (labeled_df[LABEL_COLUMN] == 1).sum()
     n_healthy = (labeled_df[LABEL_COLUMN] == 0).sum()

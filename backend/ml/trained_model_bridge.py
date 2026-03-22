@@ -2,17 +2,19 @@
 trained_model_bridge.py — Bridge between Etherscan-extracted features and
 the pre-trained Isolation Forest + Random Forest models.
 
-The trained models (models/*.pkl) were trained on BigQuery-exported data
-with 13 pipeline-standard features.  The backend's real-time feature
-extractor (backend/ml/features.py) produces 32+ Etherscan-style features.
+The trained models (models/*.pkl) were trained on BigQuery-exported data.
+The backend's real-time feature extractor (backend/ml/features.py) produces
+32+ Etherscan-style features.
 
 This module:
     1. Maps backend features → trained-model features.
     2. Loads the pre-trained IF + RF models (once, cached).
-    3. Runs 2-stage inference and returns the trained-model risk score.
+    3. Auto-detects enriched model (with graph features) via metadata.
+    4. Runs 2-stage inference and returns the trained-model risk score.
 """
 
 import os
+import json
 import logging
 import numpy as np
 
@@ -27,6 +29,7 @@ _MODEL_DIR = os.path.join(_BASE_DIR, "models")
 IFOREST_MODEL_PATH = os.path.join(_MODEL_DIR, "isolation_forest.pkl")
 IFOREST_SCALER_PATH = os.path.join(_MODEL_DIR, "iforest_scaler.pkl")
 RF_MODEL_PATH = os.path.join(_MODEL_DIR, "random_forest.pkl")
+RF_META_PATH = os.path.join(_MODEL_DIR, "random_forest_meta.json")
 
 # The 13 features the trained models expect, in order
 TRAINED_FEATURE_COLUMNS = [
@@ -135,7 +138,9 @@ class TrainedModelPredictor:
         self._scaler = None
         self._rf = None
         self._loaded = False
-        self._available = False  # True only if model files exist
+        self._available = False
+        self._enriched = False
+        self._rf_feature_cols = TRAINED_FEATURE_COLUMNS + TRAINED_ANOMALY_COLUMNS
 
     @property
     def available(self) -> bool:
@@ -159,12 +164,32 @@ class TrainedModelPredictor:
             self._iforest = joblib.load(IFOREST_MODEL_PATH)
             self._scaler = joblib.load(IFOREST_SCALER_PATH)
             self._rf = joblib.load(RF_MODEL_PATH)
+
+            # Detect enriched model via metadata
+            if os.path.isfile(RF_META_PATH):
+                try:
+                    with open(RF_META_PATH) as f:
+                        meta = json.load(f)
+                    if meta.get("model_type") == "enriched_random_forest":
+                        self._enriched = True
+                        self._rf_feature_cols = meta["feature_columns"]
+                        logger.info(
+                            "Enriched RF detected: %d features",
+                            len(self._rf_feature_cols),
+                        )
+                except Exception as e:
+                    logger.warning("Could not read RF metadata: %s", e)
+
+            if not self._enriched:
+                self._rf_feature_cols = TRAINED_FEATURE_COLUMNS + TRAINED_ANOMALY_COLUMNS
+
             self._loaded = True
             self._available = True
             logger.info(
-                "Pre-trained models loaded: IF(%s), RF(%s)",
+                "Pre-trained models loaded: IF(%s), RF(%s, %s)",
                 IFOREST_MODEL_PATH,
                 RF_MODEL_PATH,
+                "enriched" if self._enriched else "standard",
             )
         except Exception as e:
             logger.warning("Could not load pre-trained models: %s", e)
@@ -216,8 +241,12 @@ class TrainedModelPredictor:
         df["anomaly_score"] = anomaly_score
         df["anomaly_flag"] = anomaly_flag
 
-        rf_features = TRAINED_FEATURE_COLUMNS + TRAINED_ANOMALY_COLUMNS
-        X_rf = df[rf_features]
+        # Add missing graph feature columns (zeroed) for enriched model
+        for col in self._rf_feature_cols:
+            if col not in df.columns:
+                df[col] = 0.0
+
+        X_rf = df[self._rf_feature_cols]
 
         scam_probability = float(self._rf.predict_proba(X_rf)[0][1])
         risk_score = round(scam_probability * 100, 2)
