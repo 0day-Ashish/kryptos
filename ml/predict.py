@@ -4,8 +4,8 @@ predict.py — Inference module for the Kryptos hybrid pipeline.
 Loads both trained models (Isolation Forest + Random Forest) and
 predicts scam risk for any wallet given its feature vector.
 
-Supports both the original 15-feature RF and the enriched 81-feature
-RF (with graph embeddings + cluster features). Auto-detects which model
+Supports both the original 15-feature RF and the enriched graph-aware
+RF (with leakage-safe graph features). Auto-detects which model
 is loaded via the metadata file.
 
 Usage:
@@ -134,7 +134,7 @@ class WalletRiskPredictor:
         ----------
         wallet_features : dict
             Keys matching FEATURE_COLUMNS. May optionally include graph
-            features (emb_0..emb_63, cluster_size, cluster_scam_ratio).
+            features defined in ml.features.GRAPH_COLUMNS.
 
         Returns
         -------

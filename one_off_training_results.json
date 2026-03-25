@@ -1,0 +1,59 @@
+{
+  "dataset": "data/wallet_features_hard.csv",
+  "features": {
+    "base_features": [
+      "fan_out",
+      "fan_in",
+      "total_out",
+      "total_in",
+      "total_volume",
+      "out_tx_count",
+      "in_tx_count",
+      "total_tx_count",
+      "lifetime_seconds",
+      "tx_frequency",
+      "counterparty_ratio",
+      "out_in_volume_ratio",
+      "pass_through_ratio"
+    ],
+    "anomaly_features": [
+      "anomaly_score",
+      "anomaly_flag"
+    ],
+    "total_count": 15
+  },
+  "data_split": {
+    "train_samples": 106450,
+    "test_samples": 26633,
+    "train_positive_labels": 26450,
+    "test_positive_labels": 6633
+  },
+  "held_out_metrics": {
+    "accuracy": 0.9948560057072053,
+    "precision": 0.9913767019667171,
+    "recall": 0.9879390924167044,
+    "f1_score": 0.9896549120289965,
+    "roc_auc": 0.9997466455600784,
+    "confusion_matrix": [
+      [
+        19943,
+        57
+      ],
+      [
+        80,
+        6553
+      ]
+    ]
+  },
+  "cross_validation": {
+    "fold_roc_auc_scores": [
+      0.9997737358223062,
+      0.9997834475425331,
+      0.9996992202268431,
+      0.9996721290170132,
+      0.9997097235349717
+    ],
+    "mean_roc_auc": 0.9997276512287335,
+    "std_roc_auc": 4.347288457145085e-05
+  }
+}

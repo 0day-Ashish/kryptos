@@ -1,6 +1,6 @@
 {
-  "model_type": "standard_random_forest",
-  "n_features": 15,
+  "model_type": "enriched_random_forest",
+  "n_features": 22,
   "feature_columns": [
     "fan_out",
     "fan_in",
@@ -16,7 +16,14 @@
     "out_in_volume_ratio",
     "pass_through_ratio",
     "anomaly_score",
-    "anomaly_flag"
+    "anomaly_flag",
+    "neighbor_count",
+    "scam_neighbor_count",
+    "scam_neighbor_ratio",
+    "max_neighbor_risk",
+    "has_scam_neighbor",
+    "scam_density",
+    "two_hop_scam_exists"
   ],
   "base_features": [
     "fan_out",
@@ -37,33 +44,60 @@
     "anomaly_score",
     "anomaly_flag"
   ],
+  "graph_features": [
+    "neighbor_count",
+    "scam_neighbor_count",
+    "scam_neighbor_ratio",
+    "max_neighbor_risk",
+    "has_scam_neighbor",
+    "scam_density",
+    "two_hop_scam_exists"
+  ],
   "embedding_features": [],
   "cluster_features": [],
+  "graph_train_only": false,
+  "label_usage_train_only": true,
+  "test_graph_strategy": "full_graph_neighbors_train_label_only",
   "metrics": {
-    "accuracy": 1.0,
-    "precision": 1.0,
-    "recall": 1.0,
-    "f1": 1.0,
-    "roc_auc": 1.0,
-    "cv_roc_auc_mean": 1.0,
-    "cv_roc_auc_std": 0.0,
+    "accuracy": 0.8941,
+    "precision": 0.9884,
+    "recall": 0.6811,
+    "f1": 0.8064,
+    "roc_auc": 0.8416,
+    "cv_roc_auc_mean": 0.8198,
+    "cv_roc_auc_std": 0.0035,
     "confusion_matrix": [
       [
-        20000,
-        0
+        19939,
+        77
       ],
       [
-        0,
-        6617
+        3059,
+        6533
       ]
     ],
     "group_importances": {
-      "base_behavioral": 0.9951,
-      "anomaly_if": 0.0049
+      "behavioral": 0.9783,
+      "anomaly": 0.0167,
+      "graph": 0.005,
+      "graph_percent": 0.5
     },
-    "training_time_seconds": 7.7,
-    "n_train": 106466,
-    "n_test": 26617,
-    "n_features": 15
+    "training_time_seconds": 44.7,
+    "n_train": 118475,
+    "n_test": 29608,
+    "n_features": 22,
+    "n_graph_features": 7,
+    "graph_feature_defaults": {
+      "neighbor_count": 0.4904046796428694,
+      "scam_neighbor_count": 0.23245989121882804,
+      "scam_neighbor_ratio": 0.7177435154104199,
+      "max_neighbor_risk": 0.7794372711505106,
+      "has_scam_neighbor": 0.7794372711505106,
+      "scam_density": 0.06671493802821514,
+      "two_hop_scam_exists": 0.9623908663532572
+    },
+    "graph_train_only": false,
+    "label_usage_train_only": true,
+    "test_graph_strategy": "full_graph_neighbors_train_label_only"
   }
 }

@@ -87,21 +87,22 @@ LABEL_COLUMN = "label"
 ANOMALY_THRESHOLD = 0.0
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Graph-derived features (Stage 3 — Node2Vec embeddings + cluster features)
+# Graph-derived features (Stage 3 — leakage-safe graph statistics)
 # ══════════════════════════════════════════════════════════════════════════════
-
-# 64-dimensional Node2Vec wallet embeddings
-EMBEDDING_COLUMNS = [f"emb_{i}" for i in range(64)]
-
-# Cluster-level signals (cluster_id is excluded — it's categorical, not ordinal)
-CLUSTER_COLUMNS = [
-    "cluster_size",
-    "cluster_scam_ratio",
+GRAPH_COLUMNS = [
+    "neighbor_count",
+    "scam_neighbor_count",
+    "scam_neighbor_ratio",
+    "max_neighbor_risk",
+    "has_scam_neighbor",
+    "scam_density",
+    "two_hop_scam_exists",
 ]
 
-# All graph-derived columns combined
-GRAPH_COLUMNS = EMBEDDING_COLUMNS + CLUSTER_COLUMNS
+# Backward-compat aliases retained for compatibility with older modules.
+EMBEDDING_COLUMNS = []
+CLUSTER_COLUMNS = []
 
 # Full feature vector for the enriched Random Forest
-# = 13 base + 2 anomaly + 64 embeddings + 2 cluster = 81 features
+# = 13 base + 2 anomaly + 7 graph stats = 22 features
 ALL_FEATURE_COLUMNS = FEATURE_COLUMNS + ANOMALY_COLUMNS + GRAPH_COLUMNS

@@ -2,11 +2,11 @@
 evaluate_models.py — Evaluate accuracy of the trained Kryptos ML models.
 
 Loads the saved Isolation Forest + Random Forest from models/ and runs
-them against the labeled wallet datasets with a held-out test split.
+them against labeled wallet data with a held-out test split.
 
-Supports both the standard RF (15 features) and the enriched RF (81
-features with graph embeddings + cluster signals). Auto-detects which
-model is loaded via the metadata file.
+Supports both the standard RF (15 features) and the enriched RF
+(base+anomaly+graph features). Auto-detects which model is loaded via
+the metadata file.
 
 Reports:
     - Accuracy, Precision, Recall, F1-Score, ROC-AUC
@@ -39,6 +39,7 @@ from ml.features import (
 )
 from ml.train_iforest import compute_anomaly_features, load_iforest
 from ml.train_rf import load_labeled_data, load_rf
+from ml.train_rf_enriched import load_labeled_data as load_enriched_labeled_data
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,7 +56,7 @@ IFOREST_MODEL_PATH = os.path.join(MODEL_DIR, "isolation_forest.pkl")
 IFOREST_SCALER_PATH = os.path.join(MODEL_DIR, "iforest_scaler.pkl")
 RF_MODEL_PATH = os.path.join(MODEL_DIR, "random_forest.pkl")
 RF_META_PATH = os.path.join(MODEL_DIR, "random_forest_meta.json")
-ENRICHED_CSV = os.path.join(DATA_DIR, "wallet_features_with_clusters.csv")
+ENRICHED_CSV = os.path.join(DATA_DIR, "wallet_features_labeled.csv")
 
 
 def _load_rf_metadata():
@@ -230,13 +231,11 @@ def evaluate_random_forest(rf, iforest, scaler, df, test_size=0.2):
     if enriched:
         base_imp = importances[[c for c in FEATURE_COLUMNS if c in importances.index]].sum()
         anom_imp = importances[[c for c in ANOMALY_COLUMNS if c in importances.index]].sum()
-        emb_imp = importances[[c for c in EMBEDDING_COLUMNS if c in importances.index]].sum()
-        clust_imp = importances[[c for c in CLUSTER_COLUMNS if c in importances.index]].sum()
+        graph_imp = importances[[c for c in GRAPH_COLUMNS if c in importances.index]].sum()
         print("  Feature Group Importances:")
         print(f"    Base behavioral : {base_imp:.4f}")
         print(f"    Anomaly (IF)    : {anom_imp:.4f}")
-        print(f"    Embeddings      : {emb_imp:.4f}")
-        print(f"    Cluster         : {clust_imp:.4f}")
+        print(f"    Graph           : {graph_imp:.4f}")
         print()
 
     return {
@@ -320,9 +319,8 @@ def main():
     enriched_mode = meta is not None
 
     if enriched_mode and os.path.isfile(ENRICHED_CSV):
-        # Use enriched dataset for enriched model evaluation
-        from ml.train_rf_enriched import load_enriched_data
-        labeled_df = load_enriched_data(ENRICHED_CSV)
+        # Use enriched-data loader for consistent preprocessing
+        labeled_df = load_enriched_labeled_data(ENRICHED_CSV)
         print(f"  Using enriched dataset: {ENRICHED_CSV}")
     else:
         labeled_df = load_labeled_data()
