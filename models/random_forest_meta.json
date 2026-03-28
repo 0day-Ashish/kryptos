@@ -59,42 +59,42 @@
   "label_usage_train_only": true,
   "test_graph_strategy": "full_graph_neighbors_train_label_only",
   "metrics": {
-    "accuracy": 0.8941,
-    "precision": 0.9884,
-    "recall": 0.6811,
-    "f1": 0.8064,
-    "roc_auc": 0.8416,
-    "cv_roc_auc_mean": 0.8198,
-    "cv_roc_auc_std": 0.0035,
+    "accuracy": 0.9995,
+    "precision": 0.9989,
+    "recall": 0.9996,
+    "f1": 0.9992,
+    "roc_auc": 1.0,
+    "cv_roc_auc_mean": 1.0,
+    "cv_roc_auc_std": 0.0,
     "confusion_matrix": [
       [
-        19939,
-        77
+        9995,
+        5
       ],
       [
-        3059,
-        6533
+        2,
+        4615
       ]
     ],
     "group_importances": {
-      "behavioral": 0.9783,
-      "anomaly": 0.0167,
-      "graph": 0.005,
-      "graph_percent": 0.5
+      "behavioral": 0.9793,
+      "anomaly": 0.0191,
+      "graph": 0.0015,
+      "graph_percent": 0.15
     },
-    "training_time_seconds": 44.7,
-    "n_train": 118475,
-    "n_test": 29608,
+    "training_time_seconds": 3.2,
+    "n_train": 58466,
+    "n_test": 14617,
     "n_features": 22,
     "n_graph_features": 7,
     "graph_feature_defaults": {
-      "neighbor_count": 0.4904046796428694,
-      "scam_neighbor_count": 0.23245989121882804,
-      "scam_neighbor_ratio": 0.7177435154104199,
-      "max_neighbor_risk": 0.7794372711505106,
-      "has_scam_neighbor": 0.7794372711505106,
-      "scam_density": 0.06671493802821514,
-      "two_hop_scam_exists": 0.9623908663532572
+      "neighbor_count": 0.5105189340813464,
+      "scam_neighbor_count": 0.18995655594704614,
+      "scam_neighbor_ratio": 0.6274716473348244,
+      "max_neighbor_risk": 0.6934636972659787,
+      "has_scam_neighbor": 0.6934636972659787,
+      "scam_density": 0.06269655586121166,
+      "two_hop_scam_exists": 0.9177678486548151
     },
     "graph_train_only": false,
     "label_usage_train_only": true,

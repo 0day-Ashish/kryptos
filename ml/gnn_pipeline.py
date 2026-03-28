@@ -2,7 +2,7 @@ import pandas as pd
 import torch
 import torch.nn.functional as F
 from torch_geometric.data import Data
-from torch_geometric.nn import GCNConv
+from torch_geometric.nn import SAGEConv
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
@@ -126,30 +126,41 @@ print("Train nodes:", train_mask.sum().item())
 print("Test nodes:", test_mask.sum().item())
 
 # =========================
-# DEFINE MODEL
+# DEFINE MODEL (GraphSAGE)
 # =========================
-class GNN(torch.nn.Module):
+class GraphSAGE(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels):
         super().__init__()
-        self.conv1 = GCNConv(in_channels, hidden_channels)
-        self.conv2 = GCNConv(hidden_channels, 2)
+        self.conv1 = SAGEConv(in_channels, hidden_channels)
+        self.conv2 = SAGEConv(hidden_channels, hidden_channels)
+        self.lin = torch.nn.Linear(hidden_channels, 2)
 
     def forward(self, x, edge_index):
         x = self.conv1(x, edge_index)
         x = F.relu(x)
+
         x = self.conv2(x, edge_index)
+        x = F.relu(x)
+
+        x = self.lin(x)
+
         return x
 
 # =========================
 # INIT MODEL
 # =========================
-model = GNN(in_channels=X.shape[1], hidden_channels=64)
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+model = GraphSAGE(in_channels=X.shape[1], hidden_channels=64)
+
+optimizer = torch.optim.Adam(
+    model.parameters(),
+    lr=0.001,
+    weight_decay=1e-4
+)
 
 # =========================
 # TRAIN
 # =========================
-print("Training GNN...")
+print("Training GraphSAGE...")
 
 model.train()
 
@@ -204,3 +215,19 @@ print("Test Accuracy :", test_acc)
 torch.save(model.state_dict(), "../models/gnn_model.pt")
 
 print("✅ Done!")
+print("Saving GNN predictions...")
+
+model.eval()
+
+with torch.no_grad():
+    out = model(data.x, data.edge_index)
+    probs = torch.softmax(out, dim=1)[:, 1]  # scam probability
+
+gnn_df = pd.DataFrame({
+    "address": df["address"].values,
+    "gnn_score": probs.numpy()
+})
+
+gnn_df.to_csv("../data/gnn_predictions.csv", index=False)
+
+print("✅ GNN predictions saved!")

@@ -349,6 +349,13 @@ def train_leakage_safe_enriched_rf(
 
     y_pred = rf.predict(X_test)
     y_proba = rf.predict_proba(X_test)[:, 1]
+    rf_df = pd.DataFrame({
+        "address": test_df["address"].values,
+        "rf_score": y_proba,
+    })
+    rf_predictions_path = os.path.join(DATA_DIR, "rf_predictions.csv")
+    rf_df.to_csv(rf_predictions_path, index=False)
+    logger.info(f"Saved RF predictions → {rf_predictions_path}")
 
     acc = accuracy_score(y_test, y_pred)
     prec = precision_score(y_test, y_pred, zero_division=0)
@@ -401,7 +408,7 @@ def train_leakage_safe_enriched_rf(
         "label_usage_train_only": True,
         "test_graph_strategy": "full_graph_neighbors_train_label_only",
     }
-    return rf, metrics, feature_cols
+    return rf, metrics, feature_cols, test_df
 
 
 def save_rf(rf_model, metrics: dict, feature_cols: list[str], model_path: str = RF_MODEL_PATH, meta_path: str = RF_META_PATH):
@@ -446,7 +453,7 @@ if __name__ == "__main__":
     labeled = load_labeled_data(args.data)
     edges = load_edges(args.edges)
 
-    rf_model, metrics, feature_cols = train_leakage_safe_enriched_rf(labeled, edges, iforest, iforest_scaler)
+    rf_model, metrics, feature_cols, test_df = train_leakage_safe_enriched_rf(labeled, edges, iforest, iforest_scaler)
     save_rf(rf_model, metrics, feature_cols)
 
     print()
