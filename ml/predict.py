@@ -28,7 +28,7 @@ import joblib
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from ml.features import (
     FEATURE_COLUMNS, ANOMALY_COLUMNS, ANOMALY_THRESHOLD,
-    GRAPH_COLUMNS, ALL_FEATURE_COLUMNS,
+    GRAPH_COLUMNS, GNN_COLUMNS, ALL_FEATURE_COLUMNS,
 )
 
 logging.basicConfig(

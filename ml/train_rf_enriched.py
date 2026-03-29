@@ -2,10 +2,12 @@
 train_rf_enriched.py — Leakage-safe enriched Random Forest training.
 
 Key guarantees:
-    1) Train/test split is performed before any graph feature generation.
+    1) Train/test split is performed before any feature generation.
     2) Graph features are computed from TRAIN graph only.
     3) Scam-neighbor ratios use TRAIN labels only.
     4) Test labels are never used for graph features.
+    5) GNN is trained with the SAME split — loss on train only (transductive).
+    6) GNN scaler is fit on train features only.
 """
 
 import os
@@ -34,6 +36,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from ml.features import (  # noqa: E402
     ANOMALY_COLUMNS,
     FEATURE_COLUMNS,
+    GNN_COLUMNS,
     GRAPH_COLUMNS,
     LABEL_COLUMN,
     RAW_TO_FEATURE_MAP,
@@ -50,10 +53,24 @@ MODEL_DIR = os.path.join(BASE_DIR, "models")
 
 LABELED_CSV = os.path.join(DATA_DIR, "wallet_features_labeled.csv")
 EDGES_CSV = os.path.join(DATA_DIR, "wallet_edges.csv")
+GNN_DATA_CSV = os.path.join(DATA_DIR, "wallet_features_graph_hard.csv")
 RF_MODEL_PATH = os.path.join(MODEL_DIR, "random_forest.pkl")
 RF_META_PATH = os.path.join(MODEL_DIR, "random_forest_meta.json")
 
 WEI_DETECTION_THRESHOLD = 1e12
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Random Forest hyperparameters (single source of truth)
+# ══════════════════════════════════════════════════════════════════════════════
+RF_PARAMS = dict(
+    n_estimators=400,
+    max_depth=18,
+    min_samples_split=8,
+    min_samples_leaf=4,
+    class_weight="balanced",
+    n_jobs=-1,
+    random_state=42,
+)
 
 
 def _is_wei(series: pd.Series) -> bool:
@@ -257,9 +274,93 @@ def _build_graph_feature_tables(
     return train_graph, test_graph, train_means
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# GNN Integration — run GNN with the RF's train/test split
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _run_gnn_for_split(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    gnn_data_csv: str = GNN_DATA_CSV,
+    edges_csv: str = EDGES_CSV,
+) -> Tuple[pd.DataFrame, pd.DataFrame, dict]:
+    """
+    Run the GNN pipeline using the same address-level train/test split
+    as the RF.  Returns per-address gnn_score DataFrames for train and test.
+
+    Leakage safety:
+        - GNN receives the exact train/test masks derived from RF's split.
+        - GNN scaler is fit on train nodes only.
+        - GNN loss is computed on train-mask nodes only.
+        - Test nodes participate in message passing (transductive) but
+          their labels are never seen by the GNN loss.
+    """
+    from ml.gnn_pipeline import load_and_prepare_data, train_gnn, save_gnn
+
+    logger.info("Running leakage-safe GNN pipeline...")
+
+    df_gnn, data, feature_cols, address_to_idx = load_and_prepare_data(
+        csv_path=gnn_data_csv,
+        edges_path=edges_csv,
+    )
+
+    # Map RF's address-level split to GNN node indices
+    train_addresses = set(train_df["address"].astype(str))
+    test_addresses = set(test_df["address"].astype(str))
+
+    train_idx = [address_to_idx[addr] for addr in train_addresses if addr in address_to_idx]
+    test_idx = [address_to_idx[addr] for addr in test_addresses if addr in address_to_idx]
+
+    n_missing_train = len(train_addresses) - len(train_idx)
+    n_missing_test = len(test_addresses) - len(test_idx)
+    if n_missing_train > 0:
+        logger.warning(f"  {n_missing_train} train addresses not found in GNN dataset")
+    if n_missing_test > 0:
+        logger.warning(f"  {n_missing_test} test addresses not found in GNN dataset")
+
+    # If too few nodes are in the GNN graph, fall back to zero scores
+    if len(train_idx) < 10 or len(test_idx) < 5:
+        logger.warning("  Too few addresses overlap with GNN dataset — using zero gnn_scores")
+        train_gnn_df = pd.DataFrame({
+            "address": list(train_addresses),
+            "gnn_score": 0.0,
+        })
+        test_gnn_df = pd.DataFrame({
+            "address": list(test_addresses),
+            "gnn_score": 0.0,
+        })
+        gnn_metrics = {"status": "skipped_insufficient_overlap"}
+        return train_gnn_df, test_gnn_df, gnn_metrics
+
+    gnn_scores, gnn_metrics, gnn_scaler, gnn_model = train_gnn(
+        df=df_gnn,
+        data=data,
+        feature_cols=feature_cols,
+        train_idx=train_idx,
+        test_idx=test_idx,
+    )
+
+    # Save GNN artifacts
+    save_gnn(gnn_model, gnn_scaler, gnn_scores, df_gnn["address"].values)
+
+    # Build per-address score DataFrames
+    gnn_addr_scores = pd.DataFrame({
+        "address": df_gnn["address"].astype(str).values,
+        "gnn_score": gnn_scores,
+    })
+
+    train_gnn_df = gnn_addr_scores[gnn_addr_scores["address"].isin(train_addresses)].copy()
+    test_gnn_df = gnn_addr_scores[gnn_addr_scores["address"].isin(test_addresses)].copy()
+
+    logger.info(f"  GNN scores: train={len(train_gnn_df)}, test={len(test_gnn_df)}")
+
+    return train_gnn_df, test_gnn_df, gnn_metrics
+
+
 def _build_split_matrix(
     split_df: pd.DataFrame,
     graph_features: pd.DataFrame,
+    gnn_features: pd.DataFrame,
     iforest_model,
     iforest_scaler,
 ) -> Tuple[pd.DataFrame, pd.Series]:
@@ -267,12 +368,20 @@ def _build_split_matrix(
     out["address"] = out["address"].astype(str)
     out = compute_anomaly_features(out, iforest_model, iforest_scaler)
 
+    # Merge graph features
     merged = out.merge(graph_features, on="address", how="left")
     for col in GRAPH_COLUMNS:
         if col not in merged.columns:
             merged[col] = 0.0
 
-    feature_cols = FEATURE_COLUMNS + ANOMALY_COLUMNS + GRAPH_COLUMNS
+    # Merge GNN features
+    merged = merged.merge(gnn_features[["address", "gnn_score"]], on="address", how="left")
+    for col in GNN_COLUMNS:
+        if col not in merged.columns:
+            merged[col] = 0.0
+        merged[col] = merged[col].fillna(0.0)
+
+    feature_cols = FEATURE_COLUMNS + ANOMALY_COLUMNS + GRAPH_COLUMNS + GNN_COLUMNS
     X = merged[feature_cols].replace([np.inf, -np.inf], np.nan).fillna(0)
     y = merged[LABEL_COLUMN].astype(int)
     return X, y
@@ -283,9 +392,11 @@ def train_leakage_safe_enriched_rf(
     edges_df: pd.DataFrame,
     iforest_model,
     iforest_scaler,
+    gnn_data_csv: str = GNN_DATA_CSV,
+    edges_csv: str = EDGES_CSV,
 ) -> tuple:
     logger.info("=" * 70)
-    logger.info("LEAKAGE-SAFE ENRICHED RF TRAINING")
+    logger.info("LEAKAGE-SAFE ENRICHED RF TRAINING (with GNN)")
     logger.info("=" * 70)
 
     train_df, test_df = _split_by_address(labeled_df, test_size=0.2, random_state=42)
@@ -297,53 +408,52 @@ def train_leakage_safe_enriched_rf(
         f"train_addresses={train_df['address'].nunique():,}, test_addresses={test_df['address'].nunique():,}"
     )
 
+    # ── Graph features (train-label-only) ──
     logger.info("Building full-graph, train-label-only graph features...")
     train_graph, test_graph, graph_defaults = _build_graph_feature_tables(train_df, test_df, edges_df)
     logger.info(f"  Graph features: {len(GRAPH_COLUMNS)} columns")
 
+    # ── GNN features (same split, leakage-safe) ──
+    train_gnn_df, test_gnn_df, gnn_metrics = _run_gnn_for_split(
+        train_df, test_df,
+        gnn_data_csv=gnn_data_csv,
+        edges_csv=edges_csv,
+    )
+
+    # ── Build feature matrices ──
     X_train, y_train = _build_split_matrix(
         train_df,
         graph_features=train_graph,
+        gnn_features=train_gnn_df,
         iforest_model=iforest_model,
         iforest_scaler=iforest_scaler,
     )
     X_test, y_test = _build_split_matrix(
         test_df,
         graph_features=test_graph,
+        gnn_features=test_gnn_df,
         iforest_model=iforest_model,
         iforest_scaler=iforest_scaler,
     )
 
     feature_cols = list(X_train.columns)
+    expected_cols = set(FEATURE_COLUMNS + ANOMALY_COLUMNS + GRAPH_COLUMNS + GNN_COLUMNS)
     assert LABEL_COLUMN not in feature_cols, "BUG: label column present in features"
-    assert set(feature_cols) == set(FEATURE_COLUMNS + ANOMALY_COLUMNS + GRAPH_COLUMNS), "Feature mismatch"
+    assert set(feature_cols) == expected_cols, (
+        f"Feature mismatch: got {set(feature_cols)} vs expected {expected_cols}"
+    )
 
     logger.info(f"Feature matrix train={X_train.shape}, test={X_test.shape}")
 
+    # ── Cross-validation ──
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-    rf_cv = RandomForestClassifier(
-        n_estimators=400,
-        max_depth=18,
-        min_samples_split=8,
-        min_samples_leaf=4,
-        class_weight="balanced",
-        n_jobs=-1,
-        random_state=42,
-    )
+    rf_cv = RandomForestClassifier(**RF_PARAMS)
     cv_scores = cross_val_score(rf_cv, X_train, y_train, cv=cv, scoring="roc_auc", n_jobs=-1)
     logger.info(f"CV ROC-AUC: {[f'{s:.4f}' for s in cv_scores]} | mean={cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
 
+    # ── Train final model ──
     start = time.time()
-    rf = RandomForestClassifier(
-        n_estimators=400,
-        max_depth=18,
-        min_samples_split=8,
-        min_samples_leaf=4,
-        class_weight="balanced",
-        n_jobs=-1,
-        random_state=42,
-        verbose=1,
-    )
+    rf = RandomForestClassifier(**RF_PARAMS, verbose=1)
     rf.fit(X_train, y_train)
     train_time = time.time() - start
 
@@ -376,7 +486,9 @@ def train_leakage_safe_enriched_rf(
     base_imp = float(importances[[c for c in FEATURE_COLUMNS if c in importances.index]].sum())
     anomaly_imp = float(importances[[c for c in ANOMALY_COLUMNS if c in importances.index]].sum())
     graph_imp = float(importances[[c for c in GRAPH_COLUMNS if c in importances.index]].sum())
+    gnn_imp = float(importances[[c for c in GNN_COLUMNS if c in importances.index]].sum())
     graph_imp_pct = float(graph_imp * 100.0)
+    gnn_imp_pct = float(gnn_imp * 100.0)
     top20 = importances.head(20)
     logger.info("Top 20 features by importance:")
     logger.info(top20.to_string())
@@ -397,15 +509,20 @@ def train_leakage_safe_enriched_rf(
             "anomaly": round(anomaly_imp, 4),
             "graph": round(graph_imp, 4),
             "graph_percent": round(graph_imp_pct, 2),
+            "gnn": round(gnn_imp, 4),
+            "gnn_percent": round(gnn_imp_pct, 2),
         },
+        "gnn_metrics": gnn_metrics,
         "training_time_seconds": round(train_time, 1),
         "n_train": int(len(X_train)),
         "n_test": int(len(X_test)),
         "n_features": int(len(feature_cols)),
         "n_graph_features": int(len(GRAPH_COLUMNS)),
+        "n_gnn_features": int(len(GNN_COLUMNS)),
         "graph_feature_defaults": graph_defaults,
-        "graph_train_only": False,
+        "graph_train_only": True,
         "label_usage_train_only": True,
+        "gnn_integrated": True,
         "test_graph_strategy": "full_graph_neighbors_train_label_only",
     }
     return rf, metrics, feature_cols, test_df
@@ -423,10 +540,12 @@ def save_rf(rf_model, metrics: dict, feature_cols: list[str], model_path: str = 
         "base_features": list(FEATURE_COLUMNS),
         "anomaly_features": list(ANOMALY_COLUMNS),
         "graph_features": list(GRAPH_COLUMNS),
+        "gnn_features": list(GNN_COLUMNS),
         "embedding_features": [],
         "cluster_features": [],
-        "graph_train_only": metrics.get("graph_train_only", False),
+        "graph_train_only": metrics.get("graph_train_only", True),
         "label_usage_train_only": metrics.get("label_usage_train_only", True),
+        "gnn_integrated": metrics.get("gnn_integrated", True),
         "test_graph_strategy": metrics.get("test_graph_strategy", "unknown"),
         "metrics": {k: v for k, v in metrics.items() if k not in ("feature_importances", "top20_feature_importances")},
     }
@@ -441,11 +560,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train leakage-safe enriched Random Forest")
     parser.add_argument("--data", type=str, default=LABELED_CSV, help="Path to labeled wallet CSV")
     parser.add_argument("--edges", type=str, default=EDGES_CSV, help="Path to wallet edges CSV")
+    parser.add_argument("--gnn-data", type=str, default=GNN_DATA_CSV, help="Path to GNN feature CSV")
     args = parser.parse_args()
 
     print()
     print("╔" + "═" * 68 + "╗")
-    print("║   KRYPTOS — LEAKAGE-SAFE ENRICHED Random Forest Training        ║")
+    print("║   KRYPTOS — LEAKAGE-SAFE ENRICHED RF + GNN Training             ║")
     print("╚" + "═" * 68 + "╝")
     print()
 
@@ -453,7 +573,11 @@ if __name__ == "__main__":
     labeled = load_labeled_data(args.data)
     edges = load_edges(args.edges)
 
-    rf_model, metrics, feature_cols, test_df = train_leakage_safe_enriched_rf(labeled, edges, iforest, iforest_scaler)
+    rf_model, metrics, feature_cols, test_df = train_leakage_safe_enriched_rf(
+        labeled, edges, iforest, iforest_scaler,
+        gnn_data_csv=args.gnn_data,
+        edges_csv=args.edges,
+    )
     save_rf(rf_model, metrics, feature_cols)
 
     print()
@@ -469,6 +593,9 @@ if __name__ == "__main__":
     print(f"  Training time   : {metrics['training_time_seconds']}s")
     print(f"  Features used   : {metrics['n_features']}")
     print(f"  Graph features  : {metrics['n_graph_features']}")
+    print(f"  GNN features    : {metrics['n_gnn_features']}")
     print(f"  Graph strategy  : full-graph neighbors + train-label-only")
     print(f"  Graph contrib % : {metrics['group_importances']['graph_percent']}%")
+    print(f"  GNN contrib %   : {metrics['group_importances']['gnn_percent']}%")
+    print(f"  GNN integrated  : ✅")
     print("=" * 70)

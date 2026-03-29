@@ -99,10 +99,17 @@ GRAPH_COLUMNS = [
     "two_hop_scam_exists",
 ]
 
+# ══════════════════════════════════════════════════════════════════════════════
+# GNN-derived features (Stage 4 — leakage-safe GraphSAGE predictions)
+# ══════════════════════════════════════════════════════════════════════════════
+GNN_COLUMNS = [
+    "gnn_score",
+]
+
 # Backward-compat aliases retained for compatibility with older modules.
 EMBEDDING_COLUMNS = []
 CLUSTER_COLUMNS = []
 
 # Full feature vector for the enriched Random Forest
-# = 13 base + 2 anomaly + 7 graph stats = 22 features
-ALL_FEATURE_COLUMNS = FEATURE_COLUMNS + ANOMALY_COLUMNS + GRAPH_COLUMNS
+# = 13 base + 2 anomaly + 7 graph stats + 1 GNN = 23 features
+ALL_FEATURE_COLUMNS = FEATURE_COLUMNS + ANOMALY_COLUMNS + GRAPH_COLUMNS + GNN_COLUMNS
