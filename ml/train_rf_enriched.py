@@ -6,8 +6,9 @@ Key guarantees:
     2) Graph features are computed from TRAIN graph only.
     3) Scam-neighbor ratios use TRAIN labels only.
     4) Test labels are never used for graph features.
-    5) GNN is trained with the SAME split — loss on train only (transductive).
-    6) GNN scaler is fit on train features only.
+    5) GNN is trained wit the SAME split — loss on train only (transductive).
+    6) GNN scaler is fit on train features only
+   7
 """
 
 import os
