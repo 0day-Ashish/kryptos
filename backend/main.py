@@ -2,6 +2,7 @@ from fastapi import FastAPI, Query, Body, Depends, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
+import subprocess
 import time
 from collections import defaultdict
 import threading
@@ -11,6 +12,7 @@ import secrets
 import string
 from collections import Counter
 from datetime import datetime
+from pathlib import Path
 from typing import List, Optional
 from dotenv import load_dotenv
 
@@ -728,7 +730,7 @@ def download_pdf_report(address: str, chain_id: int = Query(default=1)):
             nlp_analysis = analyze_audit_report(
                 audit_text=audit_text,
                 contract_address=address,
-                model="gpt-4o-mini"
+                model="gemini-2.0-flash"
             )
     except Exception as e:
         # Graceful fallback - PDF still generates without NLP
@@ -1004,7 +1006,7 @@ def analyze_audit_report_endpoint(
     Analyze a smart contract audit report using NLP.
 
     Extracts vulnerabilities, classifies severity levels, and generates a summary
-    from raw audit report text using OpenAI GPT-4o.
+    from raw audit report text using Google Gemini.
 
     **Request:**
     - `audit_text` (required): Full text of the audit report
@@ -1039,7 +1041,7 @@ def analyze_audit_report_endpoint(
         result = analyze_audit_report(
             audit_text=body.audit_text,
             contract_address=body.contract_address,
-            model="gpt-4o-mini"  # Cost-efficient model
+            model="gemini-2.0-flash"
         )
 
         # Convert vulnerabilities to Pydantic models
@@ -1055,7 +1057,7 @@ def analyze_audit_report_endpoint(
             risk_score=result.get("risk_score", 0),
             recommended_action=result.get("recommended_action", ""),
             key_concerns=result.get("key_concerns", []),
-            model_used=result.get("model_used", "gpt-4o-mini")
+            model_used=result.get("model_used", "gemini-2.0-flash")
         )
 
     except HTTPException:
@@ -1071,3 +1073,133 @@ def analyze_audit_report_endpoint(
             status_code=500,
             detail=f"Internal server error: {str(e)}"
         )
+
+
+# ── ML Training Pipeline (SuperPlane integration) ────────────────────────────
+
+_training_lock = threading.Lock()
+_training_status = {"running": False, "last_run": None, "last_result": None}
+
+ML_DIR = Path(__file__).resolve().parent.parent / "ml"
+
+TRAINING_STEPS = [
+    {
+        "name": "train_iforest",
+        "script": "train_iforest.py",
+        "description": "Stage 1: Isolation Forest (anomaly detection)",
+        "outputs": ["isolation_forest.pkl", "iforest_scaler.pkl"],
+    },
+    {
+        "name": "train_rf_enriched",
+        "script": "train_rf_enriched.py",
+        "description": "Stage 2: GNN + Enriched Random Forest",
+        "outputs": ["random_forest.pkl", "gnn_model.pt", "gnn_scaler.pkl"],
+    },
+    {
+        "name": "combine_models",
+        "script": "combine_models.py",
+        "description": "Stage 3: Combine scores into final predictions",
+        "outputs": ["final_predictions.csv"],
+    },
+]
+
+
+def _run_training_step(step: dict) -> dict:
+    """Run a single training script and capture result."""
+    script_path = ML_DIR / step["script"]
+    if not script_path.exists():
+        return {"step": step["name"], "status": "error", "error": f"Script not found: {script_path}"}
+
+    start = time.time()
+    try:
+        result = subprocess.run(
+            ["python", str(script_path)],
+            cwd=str(ML_DIR),
+            capture_output=True,
+            text=True,
+            timeout=600,
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        )
+        elapsed = round(time.time() - start, 2)
+
+        if result.returncode != 0:
+            return {
+                "step": step["name"],
+                "status": "failed",
+                "elapsed_seconds": elapsed,
+                "error": result.stderr[-2000:] if result.stderr else "Unknown error",
+            }
+
+        return {
+            "step": step["name"],
+            "status": "success",
+            "elapsed_seconds": elapsed,
+            "summary": result.stdout[-1500:] if result.stdout else "",
+        }
+    except subprocess.TimeoutExpired:
+        return {"step": step["name"], "status": "timeout", "error": "Script exceeded 10 min limit"}
+    except Exception as e:
+        return {"step": step["name"], "status": "error", "error": str(e)}
+
+
+@app.post("/ml/train")
+@limiter.limit("2/hour")
+def trigger_ml_training(request: Request):
+    """
+    Run the full ML training pipeline (Isolation Forest -> RF+GNN -> Combine).
+
+    Designed for SuperPlane workflow integration. Runs all three training stages
+    sequentially and returns per-step results. Aborts on failure.
+
+    **Rate Limit:** 2 per hour (training is resource-intensive)
+    """
+    if _training_status["running"]:
+        raise HTTPException(status_code=409, detail="Training is already in progress")
+
+    _training_status["running"] = True
+    _training_status["last_run"] = datetime.utcnow().isoformat()
+
+    pipeline_start = time.time()
+    step_results = []
+
+    try:
+        for step in TRAINING_STEPS:
+            print(f"\n{'='*60}")
+            print(f"[ML TRAIN] Starting: {step['description']}")
+            print(f"{'='*60}")
+
+            result = _run_training_step(step)
+            step_results.append(result)
+
+            if result["status"] != "success":
+                print(f"[ML TRAIN] FAILED at step: {step['name']}")
+                total_elapsed = round(time.time() - pipeline_start, 2)
+                response = {
+                    "status": "failed",
+                    "failed_at": step["name"],
+                    "total_elapsed_seconds": total_elapsed,
+                    "steps": step_results,
+                }
+                _training_status["last_result"] = response
+                raise HTTPException(status_code=500, detail=response)
+
+            print(f"[ML TRAIN] Completed: {step['name']} in {result['elapsed_seconds']}s")
+
+        total_elapsed = round(time.time() - pipeline_start, 2)
+        response = {
+            "status": "success",
+            "total_elapsed_seconds": total_elapsed,
+            "steps": step_results,
+        }
+        _training_status["last_result"] = response
+        print(f"\n[ML TRAIN] Full pipeline completed in {total_elapsed}s")
+        return response
+
+    finally:
+        _training_status["running"] = False
+
+
+@app.get("/ml/train/status")
+def get_training_status():
+    """Check if a training run is in progress and see the last result."""
+    return _training_status

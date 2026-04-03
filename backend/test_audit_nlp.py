@@ -102,10 +102,10 @@ def test_nlp_analyzer():
         print(f"✗ Failed to import: {e}")
         return False
     
-    # Check for OpenAI API key
-    if not os.getenv("OPENAI_API_KEY"):
-        print("⚠ WARNING: OPENAI_API_KEY environment variable not set")
-        print("  Please set your OpenAI API key: export OPENAI_API_KEY='sk-...'")
+    # Check for Gemini API key
+    if not os.getenv("GEMINI_API_KEY"):
+        print("WARNING: GEMINI_API_KEY environment variable not set")
+        print("  Please set your Gemini API key: export GEMINI_API_KEY='...'")
         print("  Skipping API tests.\n")
         return False
     

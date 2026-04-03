@@ -1,5 +1,5 @@
 """
-NLP-based smart contract audit analysis using OpenAI GPT-4o.
+NLP-based smart contract audit analysis using Google Gemini.
 
 Extracts vulnerabilities, classifies severity, and generates summaries from audit reports.
 """
@@ -7,30 +7,36 @@ Extracts vulnerabilities, classifies severity, and generates summaries from audi
 import json
 import os
 from typing import Optional
-from openai import OpenAI, APIError
+from google import genai
 
-def _get_openai_client() -> OpenAI:
-    """Create OpenAI client lazily so import works even before env is loaded."""
-    api_key = os.getenv("OPENAI_API_KEY")
+_gemini_client = None
+
+def _get_gemini_client() -> genai.Client:
+    """Create Gemini client lazily so import works even before env is loaded."""
+    global _gemini_client
+    if _gemini_client is not None:
+        return _gemini_client
+    api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise ValueError(
-            "OPENAI_API_KEY is not set. Please add it to your environment or .env file."
+            "GEMINI_API_KEY is not set. Please add it to your environment or .env file."
         )
-    return OpenAI(api_key=api_key)
+    _gemini_client = genai.Client(api_key=api_key)
+    return _gemini_client
 
 
 def analyze_audit_report(
     audit_text: str,
     contract_address: Optional[str] = None,
-    model: str = "gpt-4o-mini"
+    model: str = "gemini-2.0-flash"
 ) -> dict:
     """
-    Analyze a smart contract audit report using OpenAI GPT-4o.
+    Analyze a smart contract audit report using Google Gemini.
 
     Args:
         audit_text: Full text of the audit report
         contract_address: Optional contract address for context
-        model: OpenAI model to use (default: gpt-4o-mini for cost efficiency)
+        model: Gemini model to use (default: gemini-2.0-flash for speed + cost)
 
     Returns:
         Dictionary with:
@@ -88,28 +94,28 @@ CRITICAL rules:
 
 Extract all vulnerabilities, classify by severity, and provide a summary."""
 
+    prompt = f"{system_prompt}\n\n{user_prompt}"
+
     try:
-        client = _get_openai_client()
-        response = client.chat.completions.create(
+        client = _get_gemini_client()
+        response = client.models.generate_content(
             model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.3,
-            max_tokens=2000
+            contents=prompt,
+            config=genai.types.GenerateContentConfig(
+                temperature=0.3,
+                max_output_tokens=2000,
+            ),
         )
 
-        # Parse response
-        response_text = response.choices[0].message.content.strip()
+        response_text = response.text.strip()
 
-        # Handle potential markdown code block wrapping
         if response_text.startswith("```json"):
-            response_text = response_text[7:]  # Remove ```json
+            response_text = response_text[7:]
         if response_text.startswith("```"):
-            response_text = response_text[3:]  # Remove ```
+            response_text = response_text[3:]
         if response_text.endswith("```"):
-            response_text = response_text[:-3]  # Remove trailing ```
+            response_text = response_text[:-3]
+        response_text = response_text.strip()
 
         result = json.loads(response_text)
         print(
@@ -130,8 +136,8 @@ Extract all vulnerabilities, classify by severity, and provide a summary."""
 
     except json.JSONDecodeError as e:
         raise ValueError(f"Failed to parse model response as JSON: {str(e)}")
-    except APIError as e:
-        raise RuntimeError(f"OpenAI API error: {str(e)}")
+    except Exception as e:
+        raise RuntimeError(f"Gemini API error: {str(e)}")
 
 
 def extract_vulnerabilities_lightweight(
