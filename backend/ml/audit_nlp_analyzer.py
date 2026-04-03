@@ -42,6 +42,10 @@ def analyze_audit_report(
     """
     if not audit_text or not audit_text.strip():
         raise ValueError("Audit text cannot be empty")
+    print(
+        f"[NLP] analyze_audit_report called "
+        f"(contract={contract_address}, chars={len(audit_text)}, model={model})"
+    )
 
     system_prompt = """You are an expert smart contract security analyst. 
 Analyze the provided audit report and extract key information.
@@ -108,6 +112,10 @@ Extract all vulnerabilities, classify by severity, and provide a summary."""
             response_text = response_text[:-3]  # Remove trailing ```
 
         result = json.loads(response_text)
+        print(
+            f"[NLP] analyze_audit_report parsed response "
+            f"(vulns={len(result.get('vulnerabilities', []))}, risk={result.get('risk_score', 0)})"
+        )
 
         return {
             "success": True,

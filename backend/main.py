@@ -52,6 +52,7 @@ try:
     from backend.ml.batch_analyzer import analyze_batch, parse_csv_addresses
     from backend.ml.token_scanner import scan_token
     from backend.ml.contract_auditor import audit_contract
+    from backend.ml.audit_nlp_analyzer import analyze_audit_report
     from backend.ml.watchlist import quick_score
     from backend.report_pdf import generate_pdf_report
     from backend.on_chain import store_report_on_chain, get_report_from_chain
@@ -82,6 +83,7 @@ except ModuleNotFoundError:
     from ml.batch_analyzer import analyze_batch, parse_csv_addresses
     from ml.token_scanner import scan_token
     from ml.contract_auditor import audit_contract
+    from ml.audit_nlp_analyzer import analyze_audit_report
     from ml.watchlist import quick_score
     from report_pdf import generate_pdf_report
     from on_chain import store_report_on_chain, get_report_from_chain
@@ -115,6 +117,33 @@ class BatchCsvRequest(BaseModel):
 class ShareRequest(BaseModel):
     """Request body for creating a shareable report link."""
     data: dict  # Full analysis result JSON
+
+
+class AuditAnalysisRequest(BaseModel):
+    """Request for NLP-based audit report analysis."""
+    audit_text: str  # Raw audit report text
+    contract_address: Optional[str] = None  # Optional contract address for context
+
+
+class Vulnerability(BaseModel):
+    """Single vulnerability finding."""
+    title: str
+    description: str
+    severity: str  # CRITICAL, HIGH, MEDIUM, LOW
+    line_number: Optional[int] = None
+    remediation: Optional[str] = None
+
+
+class AuditAnalysisResponse(BaseModel):
+    """Response from NLP audit analysis."""
+    success: bool
+    vulnerabilities: List[Vulnerability]
+    severity_summary: dict  # Counts of each severity level
+    overall_summary: str  # 2-3 sentence summary
+    risk_score: float  # 0-100
+    recommended_action: str  # What to do (audit, monitor, avoid, etc.)
+    key_concerns: List[str]  # Top 3 concerns
+    model_used: str
 
 
 def _generate_report_id(length: int = 10) -> str:
@@ -635,12 +664,79 @@ def similar_wallets(
 
 @app.get("/report/{address}/pdf")
 def download_pdf_report(address: str, chain_id: int = Query(default=1)):
-    """Generate and download a PDF investigation report."""
-    # Run analysis
-    analysis = analyze_wallet(address, chain_id)
+    """Generate and download a PDF investigation report with AI-powered analysis."""
+    from fastapi import Request
+    
+    # Create a mock request object (analyze_wallet expects it for rate limiting)
+    class MockRequest:
+        def __init__(self):
+            self.client = type('obj', (object,), {'host': '127.0.0.1'})()
+    
+    mock_request = MockRequest()
+    
+    # Run wallet analysis using existing endpoint logic
+    analysis = analyze_wallet(mock_request, address, chain_id)
+    
+    # Run NLP-based security analysis (optional, graceful fallback)
+    nlp_analysis = None
+    try:
+        # Build audit text from analysis results
+        audit_text_parts = []
+        
+        # Add risk assessment
+        risk_score = analysis.get("risk_score", 0)
+        risk_label = analysis.get("risk_label", "Unknown")
+        audit_text_parts.append(f"Wallet Risk Assessment: {risk_label} (Score: {risk_score}/100)")
+        
+        # Add flags
+        flags = analysis.get("flags", [])
+        if flags:
+            audit_text_parts.append(f"\nRisk Flags Detected ({len(flags)}):")
+            for flag in flags:
+                audit_text_parts.append(f"- {flag}")
+        
+        # Add behavioral features
+        features = analysis.get("feature_summary", {})
+        if features:
+            audit_text_parts.append("\nBehavioral Analysis:")
+            for key, value in list(features.items())[:10]:  # Limit to prevent too much text
+                audit_text_parts.append(f"- {key}: {value}")
+        
+        # Add mixer interactions
+        mixers = analysis.get("mixer_interactions", [])
+        if mixers:
+            audit_text_parts.append(f"\nMixer Interactions: {len(mixers)} detected")
+            for mixer in mixers[:5]:
+                audit_text_parts.append(f"- {mixer}")
+        
+        # Add sanctions
+        sanctions = analysis.get("sanctions", {})
+        if sanctions and sanctions.get("is_sanctioned"):
+            audit_text_parts.append("\nSanctions Alert: This address is on a sanctions list")
+        
+        # Add counterparty risks
+        counterparties = analysis.get("top_counterparties", [])
+        risky_counterparties = [cp for cp in counterparties if cp.get("is_mixer") or cp.get("is_sanctioned")]
+        if risky_counterparties:
+            audit_text_parts.append(f"\nRisky Counterparties: {len(risky_counterparties)} detected")
+        
+        # Build final audit text
+        audit_text = "\n".join(audit_text_parts)
+        
+        # Only run NLP if we have meaningful content
+        if len(audit_text) > 100:
+            nlp_analysis = analyze_audit_report(
+                audit_text=audit_text,
+                contract_address=address,
+                model="gpt-4o-mini"
+            )
+    except Exception as e:
+        # Graceful fallback - PDF still generates without NLP
+        print(f"NLP analysis failed (non-critical): {e}")
+        nlp_analysis = None
 
-    # Generate PDF
-    pdf_buffer = generate_pdf_report(analysis)
+    # Generate PDF with optional NLP results
+    pdf_buffer = generate_pdf_report(analysis, nlp_analysis)
 
     short = address[:10].lower()
     return StreamingResponse(
@@ -894,3 +990,84 @@ def get_shared_report_meta(report_id: str, db=Depends(get_db)):
         "created_at": report.created_at.isoformat() if report.created_at else None,
         "views": report.views,
     }
+
+
+# ── NLP-Based Audit Analysis ──────────────────────────────────────────────────
+
+@app.post("/contract-audit-analyze")
+@limiter.limit("10/minute")
+def analyze_audit_report_endpoint(
+    req: Request,
+    body: AuditAnalysisRequest
+) -> AuditAnalysisResponse:
+    """
+    Analyze a smart contract audit report using NLP.
+
+    Extracts vulnerabilities, classifies severity levels, and generates a summary
+    from raw audit report text using OpenAI GPT-4o.
+
+    **Request:**
+    - `audit_text` (required): Full text of the audit report
+    - `contract_address` (optional): Contract address for additional context
+
+    **Response:**
+    - `vulnerabilities`: List of extracted vulnerabilities with severity
+    - `severity_summary`: Count of findings by severity (CRITICAL, HIGH, MEDIUM, LOW)
+    - `overall_summary`: Concise 2-3 sentence summary
+    - `risk_score`: Overall risk score (0-100)
+    - `recommended_action`: Action recommendation (audit, monitor, avoid, etc.)
+    - `key_concerns`: Top 3 identified concerns
+
+    **Example Request:**
+    ```json
+    {
+        "audit_text": "The contract has potential reentrancy vulnerabilities...",
+        "contract_address": "0x1234..."
+    }
+    ```
+
+    **Rate Limit:** 10 requests per minute per IP
+    """
+    try:
+        if not body.audit_text or not body.audit_text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="audit_text cannot be empty"
+            )
+
+        # Call NLP analyzer
+        result = analyze_audit_report(
+            audit_text=body.audit_text,
+            contract_address=body.contract_address,
+            model="gpt-4o-mini"  # Cost-efficient model
+        )
+
+        # Convert vulnerabilities to Pydantic models
+        vulnerabilities = [
+            Vulnerability(**vuln) for vuln in result.get("vulnerabilities", [])
+        ]
+
+        return AuditAnalysisResponse(
+            success=result["success"],
+            vulnerabilities=vulnerabilities,
+            severity_summary=result.get("severity_summary", {}),
+            overall_summary=result.get("overall_summary", ""),
+            risk_score=result.get("risk_score", 0),
+            recommended_action=result.get("recommended_action", ""),
+            key_concerns=result.get("key_concerns", []),
+            model_used=result.get("model_used", "gpt-4o-mini")
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
