@@ -22,10 +22,12 @@ try:
     from backend.db.models import get_db, User, WatchlistItem
     from backend.auth.auth import get_current_user
     from backend.ml.watchlist import quick_score
+    from backend.auth.plans import get_watchlist_limit
 except ModuleNotFoundError:
     from db.models import get_db, User, WatchlistItem
     from auth.auth import get_current_user
     from ml.watchlist import quick_score
+    from auth.plans import get_watchlist_limit
 
 router = APIRouter(prefix="/watchlist", tags=["watchlist"])
 
@@ -113,6 +115,18 @@ def add_item(body: AddItemRequest, wallet: str = Depends(get_current_user), db: 
 
     if not address.startswith("0x") or len(address) != 42:
         raise HTTPException(status_code=400, detail="Invalid address")
+
+    # Plan-based watchlist limit
+    max_items = get_watchlist_limit(wallet, db)
+    if max_items == 0:
+        raise HTTPException(status_code=403, detail="Watchlist requires a Pro or Enterprise plan.")
+    if max_items > 0:
+        current_count = db.query(WatchlistItem).filter(WatchlistItem.user_id == user.id).count()
+        if current_count >= max_items:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Watchlist limit reached ({max_items} items on your plan). Upgrade for more.",
+            )
 
     # Check duplicate
     existing = db.query(WatchlistItem).filter(

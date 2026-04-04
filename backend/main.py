@@ -2,6 +2,7 @@ from fastapi import FastAPI, Query, Body, Depends, Request, HTTPException, Uploa
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 import subprocess
 import time
 from collections import defaultdict
@@ -20,13 +21,23 @@ load_dotenv()
 
 # ── Database + Auth ──────────────────────────────────────────────────────────
 try:
-    from backend.db.models import init_db, get_db, SharedReport
+    from backend.db.models import init_db, get_db, SharedReport, User
     from backend.auth.routes import router as auth_router, users_router
     from backend.auth.watchlist_routes import router as watchlist_router
+    from backend.auth.plans import (
+        require_plan, require_feature, check_scan_quota,
+        get_plan_limits, get_batch_limit, get_watchlist_limit, PLAN_LIMITS,
+    )
+    from backend.auth.auth import get_current_user, get_optional_user
 except ModuleNotFoundError:
-    from db.models import init_db, get_db, SharedReport
+    from db.models import init_db, get_db, SharedReport, User
     from auth.routes import router as auth_router, users_router
     from auth.watchlist_routes import router as watchlist_router
+    from auth.plans import (
+        require_plan, require_feature, check_scan_quota,
+        get_plan_limits, get_batch_limit, get_watchlist_limit, PLAN_LIMITS,
+    )
+    from auth.auth import get_current_user, get_optional_user
 
 try:
     from backend.ml.config import CHAIN_ID, ETHERSCAN_API_KEY, SUPPORTED_CHAINS, get_chain_by_id
@@ -197,7 +208,12 @@ def list_chains():
 
 @app.get("/analyze/{address}")
 @limiter.limit("10/minute")
-def analyze_wallet(request: Request, address: str, chain_id: int = Query(default=1, description="Chain ID to query")):
+def analyze_wallet(
+    request: Request,
+    address: str,
+    chain_id: int = Query(default=1, description="Chain ID to query"),
+    _user: User = Depends(check_scan_quota),
+):
     # ENS resolution — accept vitalik.eth or raw address
     resolved = resolve_input(address)
     if resolved["resolved"] and resolved["address"]:
@@ -611,6 +627,7 @@ def trace_funds(
     depth: int = Query(default=3, ge=1, le=5),
     min_value: float = Query(default=0.01),
     direction: str = Query(default="out", pattern="^(in|out)$"),
+    _user: User = Depends(require_feature("fund_flow")),
 ):
     """
     Trace fund flow from a wallet.
@@ -665,7 +682,11 @@ def similar_wallets(
 
 
 @app.get("/report/{address}/pdf")
-def download_pdf_report(address: str, chain_id: int = Query(default=1)):
+def download_pdf_report(
+    address: str,
+    chain_id: int = Query(default=1),
+    _user: User = Depends(require_feature("pdf_reports")),
+):
     """Generate and download a PDF investigation report with AI-powered analysis."""
     try:
         address = address.lower().strip()
@@ -894,8 +915,18 @@ def flagged_addresses(min_reports: int = Query(default=2, ge=1)):
 
 @app.post("/batch")
 @limiter.limit("3/minute")
-def batch_analysis(request: Request, req: BatchRequest):
-    """Analyze multiple addresses in one request (max 50)."""
+def batch_analysis(
+    request: Request,
+    req: BatchRequest,
+    wallet: str = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Analyze multiple addresses in one request. Batch size depends on plan."""
+    max_batch = get_batch_limit(wallet, db)
+    if max_batch == 0:
+        raise HTTPException(status_code=403, detail="Batch analysis requires a Pro or Enterprise plan.")
+    if len(req.addresses) > max_batch:
+        raise HTTPException(status_code=400, detail=f"Your plan allows max {max_batch} addresses per batch.")
     return analyze_batch(
         addresses=req.addresses,
         chain_id=req.chain_id,
@@ -921,7 +952,12 @@ def token_risk_scan(request: Request, address: str, chain_id: int = Query(defaul
 
 @app.get("/contract-audit/{address}")
 @limiter.limit("5/minute")
-def contract_security_audit(request: Request, address: str, chain_id: int = Query(default=1, description="Chain ID")):
+def contract_security_audit(
+    request: Request,
+    address: str,
+    chain_id: int = Query(default=1, description="Chain ID"),
+    _user: User = Depends(require_feature("contract_audit")),
+):
     """Run a static security audit on a smart contract."""
     try:
         return audit_contract(address.lower(), chain_id)
@@ -933,11 +969,21 @@ def contract_security_audit(request: Request, address: str, chain_id: int = Quer
 
 @app.post("/batch/csv")
 @limiter.limit("3/minute")
-def batch_csv_analysis(request: Request, req: BatchCsvRequest):
+def batch_csv_analysis(
+    request: Request,
+    req: BatchCsvRequest,
+    wallet: str = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Analyze addresses from CSV content."""
+    max_batch = get_batch_limit(wallet, db)
+    if max_batch == 0:
+        raise HTTPException(status_code=403, detail="Batch analysis requires a Pro or Enterprise plan.")
     addresses = parse_csv_addresses(req.csv_content)
     if not addresses:
         return {"error": "No valid addresses found in CSV"}
+    if len(addresses) > max_batch:
+        raise HTTPException(status_code=400, detail=f"Your plan allows max {max_batch} addresses per batch.")
     return analyze_batch(
         addresses=addresses,
         chain_id=req.chain_id,
@@ -952,15 +998,21 @@ async def batch_upload_analysis(
     file: UploadFile = File(..., description="CSV file with wallet addresses"),
     chain_id: int = Form(default=1, description="Chain ID (1=Ethereum, 8453=Base, etc.)"),
     quick: bool = Form(default=True, description="Quick mode uses fewer transactions per wallet"),
+    wallet: str = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Upload a CSV file containing wallet addresses for batch risk analysis.
 
     The CSV should have an 'address' column header, or be a single-column list
-    of 0x addresses (one per row). Maximum 50 addresses per batch.
+    of 0x addresses (one per row). Batch size depends on plan.
 
     Returns per-wallet risk scores, labels, flags and an aggregate summary.
     """
+    max_batch = get_batch_limit(wallet, db)
+    if max_batch == 0:
+        raise HTTPException(status_code=403, detail="Batch analysis requires a Pro or Enterprise plan.")
+
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only .csv files are accepted")
 
@@ -980,6 +1032,8 @@ async def batch_upload_analysis(
             status_code=400,
             detail="No valid wallet addresses found. Ensure your CSV has an 'address' column or contains 0x addresses.",
         )
+    if len(addresses) > max_batch:
+        raise HTTPException(status_code=400, detail=f"Your plan allows max {max_batch} addresses per batch.")
 
     result = analyze_batch(
         addresses=addresses,

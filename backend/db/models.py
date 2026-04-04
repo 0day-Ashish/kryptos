@@ -39,6 +39,11 @@ class User(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_login = Column(DateTime, nullable=True)
 
+    # Plan & usage tracking
+    plan = Column(String(16), default="free", nullable=False)
+    daily_scan_count = Column(Integer, default=0, nullable=False)
+    daily_scan_reset = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
     watchlist = relationship("WatchlistItem", back_populates="owner", cascade="all, delete-orphan")
 
 

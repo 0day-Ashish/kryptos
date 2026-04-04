@@ -22,11 +22,13 @@ try:
     from backend.auth.auth import (
         build_siwe_message, verify_signature, create_jwt, get_current_user,
     )
+    from backend.auth.plans import get_plan_limits, PLAN_LIMITS, VALID_PLANS
 except ModuleNotFoundError:
     from db.models import get_db, User, DiscordLinkRequest, DiscordWalletLink
     from auth.auth import (
         build_siwe_message, verify_signature, create_jwt, get_current_user,
     )
+    from auth.plans import get_plan_limits, PLAN_LIMITS, VALID_PLANS
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 users_router = APIRouter(prefix="/users", tags=["users"])
@@ -53,6 +55,9 @@ class VerifyResponse(BaseModel):
 class MeResponse(BaseModel):
     address: str
     created_at: str
+    plan: str
+    daily_scans_used: int
+    daily_scans_limit: int
 
 
 class DiscordLinkRequestBody(BaseModel):
@@ -146,13 +151,19 @@ def verify_and_login(body: VerifyRequest, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=MeResponse)
 def get_me(wallet: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Return the current authenticated user."""
+    """Return the current authenticated user with plan info."""
     user = db.query(User).filter(User.wallet_address == wallet).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    plan = user.plan or "free"
+    limits = get_plan_limits(plan)
+    daily_limit = limits["daily_scans"]
     return MeResponse(
         address=user.wallet_address,
         created_at=user.created_at.isoformat() if user.created_at else "",
+        plan=plan,
+        daily_scans_used=user.daily_scan_count or 0,
+        daily_scans_limit=daily_limit,
     )
 
 
@@ -305,3 +316,71 @@ def get_discord_premium_status(discord_id: str, db: Session = Depends(get_db)):
         is_premium=premium_active,
         premium_expires_at=link.premium_expires_at.isoformat() if link.premium_expires_at else None,
     )
+
+
+# ── Plan Management ─────────────────────────────────────────────────────────
+
+class PlanResponse(BaseModel):
+    plan: str
+    limits: dict
+    daily_scans_used: int
+    daily_scans_limit: int
+
+
+class UpgradePlanRequest(BaseModel):
+    plan: str
+
+
+@router.get("/plan", response_model=PlanResponse)
+def get_user_plan(wallet: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Return the current user's plan and its limits."""
+    user = db.query(User).filter(User.wallet_address == wallet).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    plan = user.plan or "free"
+    limits = get_plan_limits(plan)
+    return PlanResponse(
+        plan=plan,
+        limits=limits,
+        daily_scans_used=user.daily_scan_count or 0,
+        daily_scans_limit=limits["daily_scans"],
+    )
+
+
+@router.put("/plan")
+def update_user_plan(
+    body: UpgradePlanRequest,
+    wallet: str = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Upgrade or change a user's plan.
+
+    In production, this should be called after payment verification
+    (e.g. Stripe webhook or on-chain payment confirmation).
+    For now, it directly updates the plan for demo purposes.
+    """
+    new_plan = body.plan.lower().strip()
+    if new_plan not in VALID_PLANS:
+        raise HTTPException(status_code=400, detail=f"Invalid plan. Must be one of: {', '.join(VALID_PLANS)}")
+
+    user = db.query(User).filter(User.wallet_address == wallet).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    old_plan = user.plan or "free"
+    user.plan = new_plan
+    db.commit()
+
+    limits = get_plan_limits(new_plan)
+    return {
+        "message": f"Plan updated from {old_plan} to {new_plan}",
+        "plan": new_plan,
+        "limits": limits,
+    }
+
+
+@router.get("/plans")
+def list_available_plans():
+    """Return all available plans and their feature limits."""
+    return {"plans": PLAN_LIMITS}
