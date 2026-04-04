@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, Body, Depends, Request, HTTPException
+from fastapi import FastAPI, Query, Body, Depends, Request, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
@@ -896,6 +896,53 @@ def batch_csv_analysis(request: Request, req: BatchCsvRequest):
         chain_id=req.chain_id,
         quick=req.quick,
     )
+
+
+@app.post("/batch/upload")
+@limiter.limit("3/minute")
+async def batch_upload_analysis(
+    request: Request,
+    file: UploadFile = File(..., description="CSV file with wallet addresses"),
+    chain_id: int = Form(default=1, description="Chain ID (1=Ethereum, 8453=Base, etc.)"),
+    quick: bool = Form(default=True, description="Quick mode uses fewer transactions per wallet"),
+):
+    """
+    Upload a CSV file containing wallet addresses for batch risk analysis.
+
+    The CSV should have an 'address' column header, or be a single-column list
+    of 0x addresses (one per row). Maximum 50 addresses per batch.
+
+    Returns per-wallet risk scores, labels, flags and an aggregate summary.
+    """
+    if not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only .csv files are accepted")
+
+    contents = await file.read()
+
+    try:
+        csv_text = contents.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            csv_text = contents.decode("latin-1")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Could not decode file. Use UTF-8 encoding.")
+
+    addresses = parse_csv_addresses(csv_text)
+    if not addresses:
+        raise HTTPException(
+            status_code=400,
+            detail="No valid wallet addresses found. Ensure your CSV has an 'address' column or contains 0x addresses.",
+        )
+
+    result = analyze_batch(
+        addresses=addresses,
+        chain_id=chain_id,
+        quick=quick,
+    )
+
+    result["filename"] = file.filename
+    result["chain_id"] = chain_id
+    return result
 
 
 # ── Wallet Watchlist ─────────────────────────────────────────────────────────
