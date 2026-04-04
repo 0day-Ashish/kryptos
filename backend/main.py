@@ -667,87 +667,134 @@ def similar_wallets(
 @app.get("/report/{address}/pdf")
 def download_pdf_report(address: str, chain_id: int = Query(default=1)):
     """Generate and download a PDF investigation report with AI-powered analysis."""
-    from fastapi import Request
-    
-    # Create a mock request object (analyze_wallet expects it for rate limiting)
-    class MockRequest:
-        def __init__(self):
-            self.client = type('obj', (object,), {'host': '127.0.0.1'})()
-    
-    mock_request = MockRequest()
-    
-    # Run wallet analysis using existing endpoint logic
-    analysis = analyze_wallet(mock_request, address, chain_id)
-    
-    # Run NLP-based security analysis (optional, graceful fallback)
-    nlp_analysis = None
     try:
-        # Build audit text from analysis results
-        audit_text_parts = []
+        address = address.lower().strip()
         
-        # Add risk assessment
-        risk_score = analysis.get("risk_score", 0)
-        risk_label = analysis.get("risk_label", "Unknown")
-        audit_text_parts.append(f"Wallet Risk Assessment: {risk_label} (Score: {risk_score}/100)")
+        # Validate address
+        if not address.startswith("0x") or len(address) != 42:
+            raise HTTPException(status_code=400, detail="Invalid wallet address format")
         
-        # Add flags
-        flags = analysis.get("flags", [])
-        if flags:
-            audit_text_parts.append(f"\nRisk Flags Detected ({len(flags)}):")
-            for flag in flags:
-                audit_text_parts.append(f"- {flag}")
+        # Run wallet analysis directly (bypass rate limiter by calling scorer directly)
+        try:
+            normal_txns = fetch_transactions(address, chain_id, max_results=200)
+            internal_txns = fetch_internal_transactions(address, chain_id, max_results=50)
+            all_target_txns = normal_txns + internal_txns
+            
+            if not all_target_txns:
+                raise HTTPException(status_code=404, detail="No transaction data found for this address")
+            
+            neighbor_txns = []
+            try:
+                neighbors = discover_neighbors(address, all_target_txns, max_neighbors=8)
+                neighbor_txns = fetch_neighbor_transactions(neighbors, chain_id, max_per_neighbor=30)
+            except Exception as e:
+                print(f"Neighbor analysis failed (non-fatal): {e}")
+            
+            result = wallet_scorer.score_wallet(address, all_target_txns, neighbor_txns, chain_id)
+            
+            # Build analysis dict (mimicking analyze_wallet response)
+            sanctions_result = check_sanctions(address)
+            balance = fetch_balance(address, chain_id)
+            
+            risk_score = result.get("risk_score", 50)
+            if sanctions_result.get("risk_modifier", 0) > 0:
+                risk_score = min(100, risk_score + sanctions_result["risk_modifier"])
+            
+            analysis = {
+                "address": address,
+                "risk_score": risk_score,
+                "risk_label": result.get("risk_label", "Unknown"),
+                "ml_raw_score": result.get("ml_raw_score", 0),
+                "heuristic_score": result.get("heuristic_score", 0),
+                "flags": result.get("flags", []),
+                "feature_summary": result.get("feature_summary", {}),
+                "trained_model": result.get("trained_model"),
+                "sanctions": sanctions_result,
+                "balance": balance,
+                "tx_count": len(all_target_txns),
+                "mixer_interactions": result.get("mixer_interactions", []),
+                "top_counterparties": result.get("top_counterparties", []),
+            }
+        except Exception as e:
+            print(f"Analysis error: {e}")
+            raise HTTPException(status_code=500, detail=f"Wallet analysis failed: {str(e)}")
         
-        # Add behavioral features
-        features = analysis.get("feature_summary", {})
-        if features:
-            audit_text_parts.append("\nBehavioral Analysis:")
-            for key, value in list(features.items())[:10]:  # Limit to prevent too much text
-                audit_text_parts.append(f"- {key}: {value}")
-        
-        # Add mixer interactions
-        mixers = analysis.get("mixer_interactions", [])
-        if mixers:
-            audit_text_parts.append(f"\nMixer Interactions: {len(mixers)} detected")
-            for mixer in mixers[:5]:
-                audit_text_parts.append(f"- {mixer}")
-        
-        # Add sanctions
-        sanctions = analysis.get("sanctions", {})
-        if sanctions and sanctions.get("is_sanctioned"):
-            audit_text_parts.append("\nSanctions Alert: This address is on a sanctions list")
-        
-        # Add counterparty risks
-        counterparties = analysis.get("top_counterparties", [])
-        risky_counterparties = [cp for cp in counterparties if cp.get("is_mixer") or cp.get("is_sanctioned")]
-        if risky_counterparties:
-            audit_text_parts.append(f"\nRisky Counterparties: {len(risky_counterparties)} detected")
-        
-        # Build final audit text
-        audit_text = "\n".join(audit_text_parts)
-        
-        # Only run NLP if we have meaningful content
-        if len(audit_text) > 100:
-            nlp_analysis = analyze_audit_report(
-                audit_text=audit_text,
-                contract_address=address,
-                model="gemini-2.0-flash"
-            )
-    except Exception as e:
-        # Graceful fallback - PDF still generates without NLP
-        print(f"NLP analysis failed (non-critical): {e}")
+        # Run NLP-based security analysis (optional, graceful fallback)
         nlp_analysis = None
-
-    # Generate PDF with optional NLP results
-    pdf_buffer = generate_pdf_report(analysis, nlp_analysis)
-
-    short = address[:10].lower()
-    return StreamingResponse(
-        pdf_buffer,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="kryptos-report-{short}.pdf"'
-        },
-    )
+        try:
+            # Build audit text from analysis results
+            audit_text_parts = []
+            
+            # Add risk assessment
+            risk_score = analysis.get("risk_score", 0)
+            risk_label = analysis.get("risk_label", "Unknown")
+            audit_text_parts.append(f"Wallet Risk Assessment: {risk_label} (Score: {risk_score}/100)")
+            
+            # Add flags
+            flags = analysis.get("flags", [])
+            if flags:
+                audit_text_parts.append(f"\nRisk Flags Detected ({len(flags)}):")
+                for flag in flags:
+                    audit_text_parts.append(f"- {flag}")
+            
+            # Add behavioral features
+            features = analysis.get("feature_summary", {})
+            if features:
+                audit_text_parts.append("\nBehavioral Analysis:")
+                for key, value in list(features.items())[:10]:
+                    audit_text_parts.append(f"- {key}: {value}")
+            
+            # Add mixer interactions
+            mixers = analysis.get("mixer_interactions", [])
+            if mixers:
+                audit_text_parts.append(f"\nMixer Interactions: {len(mixers)} detected")
+                for mixer in mixers[:5]:
+                    audit_text_parts.append(f"- {mixer}")
+            
+            # Add sanctions
+            sanctions = analysis.get("sanctions", {})
+            if sanctions and sanctions.get("is_sanctioned"):
+                audit_text_parts.append("\nSanctions Alert: This address is on a sanctions list")
+            
+            # Add counterparty risks
+            counterparties = analysis.get("top_counterparties", [])
+            risky_counterparties = [cp for cp in counterparties if cp.get("is_mixer") or cp.get("is_sanctioned")]
+            if risky_counterparties:
+                audit_text_parts.append(f"\nRisky Counterparties: {len(risky_counterparties)} detected")
+            
+            # Build final audit text
+            audit_text = "\n".join(audit_text_parts)
+            
+            # Only run NLP if we have meaningful content
+            if len(audit_text) > 100:
+                nlp_analysis = analyze_audit_report(
+                    audit_text=audit_text,
+                    contract_address=address,
+                    model="gemini-2.0-flash"
+                )
+        except Exception as e:
+            # Graceful fallback - PDF still generates without NLP
+            print(f"NLP analysis failed (non-critical): {e}")
+            nlp_analysis = None
+        
+        # Generate PDF with optional NLP results
+        pdf_buffer = generate_pdf_report(analysis, nlp_analysis)
+        
+        short = address[:10].lower()
+        return StreamingResponse(
+            pdf_buffer,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="kryptos-report-{short}.pdf"'
+            },
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
 
 
 # ── Advanced Endpoints (v4.0) ───────────────────────────────────────────────
