@@ -64,10 +64,10 @@ WEI_DETECTION_THRESHOLD = 1e12
 # Random Forest hyperparameters (single source of truth)
 # ══════════════════════════════════════════════════════════════════════════════
 RF_PARAMS = dict(
-    n_estimators=400,
-    max_depth=18,
-    min_samples_split=8,
-    min_samples_leaf=4,
+    n_estimators=200,
+    max_depth=12,
+    min_samples_split=10,
+    min_samples_leaf=8,
     class_weight="balanced",
     n_jobs=-1,
     random_state=42,
@@ -446,11 +446,16 @@ def train_leakage_safe_enriched_rf(
 
     logger.info(f"Feature matrix train={X_train.shape}, test={X_test.shape}")
 
-    # ── Cross-validation ──
+    # ── Cross-validation (approximate — graph/GNN features are NOT recomputed
+    #    per fold, so these scores are optimistic upper bounds) ──
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     rf_cv = RandomForestClassifier(**RF_PARAMS)
     cv_scores = cross_val_score(rf_cv, X_train, y_train, cv=cv, scoring="roc_auc", n_jobs=-1)
-    logger.info(f"CV ROC-AUC: {[f'{s:.4f}' for s in cv_scores]} | mean={cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
+    logger.info(
+        f"CV ROC-AUC (approx*): {[f'{s:.4f}' for s in cv_scores]} "
+        f"| mean={cv_scores.mean():.4f} +/- {cv_scores.std():.4f}"
+    )
+    logger.info("  *Graph/GNN features pre-computed on full train set; CV folds do not recompute them.")
 
     # ── Train final model ──
     start = time.time()
@@ -500,8 +505,8 @@ def train_leakage_safe_enriched_rf(
         "recall": round(rec, 4),
         "f1": round(f1, 4),
         "roc_auc": round(roc, 4),
-        "cv_roc_auc_mean": round(float(cv_scores.mean()), 4),
-        "cv_roc_auc_std": round(float(cv_scores.std()), 4),
+        "cv_roc_auc_mean_approx": round(float(cv_scores.mean()), 4),
+        "cv_roc_auc_std_approx": round(float(cv_scores.std()), 4),
         "confusion_matrix": cm.tolist(),
         "feature_importances": importances.to_dict(),
         "top20_feature_importances": top20.to_dict(),
@@ -590,7 +595,7 @@ if __name__ == "__main__":
     print(f"  Recall          : {metrics['recall']}")
     print(f"  F1 Score        : {metrics['f1']}")
     print(f"  ROC-AUC         : {metrics['roc_auc']}")
-    print(f"  CV ROC-AUC      : {metrics['cv_roc_auc_mean']} ± {metrics['cv_roc_auc_std']}")
+    print(f"  CV ROC-AUC*     : {metrics['cv_roc_auc_mean_approx']} +/- {metrics['cv_roc_auc_std_approx']}  (*approx, graph features not recomputed per fold)")
     print(f"  Training time   : {metrics['training_time_seconds']}s")
     print(f"  Features used   : {metrics['n_features']}")
     print(f"  Graph features  : {metrics['n_graph_features']}")
