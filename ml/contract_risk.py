@@ -440,7 +440,7 @@ def compute_contract_risk_profile(
                 nlp_result = analyze_audit_report(
                     audit_text=audit_text,
                     contract_address=contract_address,
-                    model="gpt-4o-mini",
+                    model="gemini-2.0-flash",
                 )
                 if nlp_result.get("success"):
                     used_nlp = True
@@ -488,7 +488,7 @@ def compute_contract_risk(
         contract_address: Contract address to analyze
         chain_id: Blockchain chain ID
         cache: Optional dict to cache results
-        use_nlp: Whether to use NLP analysis (requires OpenAI API)
+        use_nlp: Whether to use NLP analysis (requires Gemini API)
     
     Returns:
         Normalized risk score (0.0 - 1.0)

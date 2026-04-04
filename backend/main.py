@@ -999,7 +999,7 @@ def get_shared_report_meta(report_id: str, db=Depends(get_db)):
 @app.post("/contract-audit-analyze")
 @limiter.limit("10/minute")
 def analyze_audit_report_endpoint(
-    req: Request,
+    request: Request,
     body: AuditAnalysisRequest
 ) -> AuditAnalysisResponse:
     """
