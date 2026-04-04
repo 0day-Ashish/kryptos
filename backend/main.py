@@ -1077,8 +1077,12 @@ def analyze_audit_report_endpoint(
 
 # ── ML Training Pipeline (SuperPlane integration) ────────────────────────────
 
-_training_lock = threading.Lock()
-_training_status = {"running": False, "last_run": None, "last_result": None}
+_training_status = {
+    "running": False,
+    "current_step": None,
+    "last_run": None,
+    "last_result": None,
+}
 
 ML_DIR = Path(__file__).resolve().parent.parent / "ml"
 
@@ -1087,25 +1091,21 @@ TRAINING_STEPS = [
         "name": "train_iforest",
         "script": "train_iforest.py",
         "description": "Stage 1: Isolation Forest (anomaly detection)",
-        "outputs": ["isolation_forest.pkl", "iforest_scaler.pkl"],
     },
     {
         "name": "train_rf_enriched",
         "script": "train_rf_enriched.py",
         "description": "Stage 2: GNN + Enriched Random Forest",
-        "outputs": ["random_forest.pkl", "gnn_model.pt", "gnn_scaler.pkl"],
     },
     {
         "name": "combine_models",
         "script": "combine_models.py",
         "description": "Stage 3: Combine scores into final predictions",
-        "outputs": ["final_predictions.csv"],
     },
 ]
 
 
 def _run_training_step(step: dict) -> dict:
-    """Run a single training script and capture result."""
     script_path = ML_DIR / step["script"]
     if not script_path.exists():
         return {"step": step["name"], "status": "error", "error": f"Script not found: {script_path}"}
@@ -1142,28 +1142,14 @@ def _run_training_step(step: dict) -> dict:
         return {"step": step["name"], "status": "error", "error": str(e)}
 
 
-@app.post("/ml/train")
-@limiter.limit("2/hour")
-def trigger_ml_training(request: Request):
-    """
-    Run the full ML training pipeline (Isolation Forest -> RF+GNN -> Combine).
-
-    Designed for SuperPlane workflow integration. Runs all three training stages
-    sequentially and returns per-step results. Aborts on failure.
-
-    **Rate Limit:** 2 per hour (training is resource-intensive)
-    """
-    if _training_status["running"]:
-        raise HTTPException(status_code=409, detail="Training is already in progress")
-
-    _training_status["running"] = True
-    _training_status["last_run"] = datetime.utcnow().isoformat()
-
+def _run_pipeline_in_background():
+    """Runs the full training pipeline in a background thread."""
     pipeline_start = time.time()
     step_results = []
 
     try:
         for step in TRAINING_STEPS:
+            _training_status["current_step"] = step["name"]
             print(f"\n{'='*60}")
             print(f"[ML TRAIN] Starting: {step['description']}")
             print(f"{'='*60}")
@@ -1174,32 +1160,66 @@ def trigger_ml_training(request: Request):
             if result["status"] != "success":
                 print(f"[ML TRAIN] FAILED at step: {step['name']}")
                 total_elapsed = round(time.time() - pipeline_start, 2)
-                response = {
+                _training_status["last_result"] = {
                     "status": "failed",
                     "failed_at": step["name"],
                     "total_elapsed_seconds": total_elapsed,
                     "steps": step_results,
                 }
-                _training_status["last_result"] = response
-                raise HTTPException(status_code=500, detail=response)
+                return
 
             print(f"[ML TRAIN] Completed: {step['name']} in {result['elapsed_seconds']}s")
 
         total_elapsed = round(time.time() - pipeline_start, 2)
-        response = {
+        _training_status["last_result"] = {
             "status": "success",
             "total_elapsed_seconds": total_elapsed,
             "steps": step_results,
         }
-        _training_status["last_result"] = response
         print(f"\n[ML TRAIN] Full pipeline completed in {total_elapsed}s")
-        return response
+
+    except Exception as e:
+        _training_status["last_result"] = {"status": "error", "error": str(e)}
 
     finally:
         _training_status["running"] = False
+        _training_status["current_step"] = None
+
+
+@app.post("/ml/train", status_code=202)
+@limiter.limit("2/hour")
+def trigger_ml_training(request: Request):
+    """
+    Start the ML training pipeline in the background.
+
+    Returns 202 immediately. Poll GET /ml/train/status to track progress.
+    Returns 409 if training is already running.
+    """
+    if _training_status["running"]:
+        raise HTTPException(status_code=409, detail="Training is already in progress")
+
+    _training_status["running"] = True
+    _training_status["current_step"] = "starting"
+    _training_status["last_run"] = datetime.utcnow().isoformat()
+    _training_status["last_result"] = None
+
+    thread = threading.Thread(target=_run_pipeline_in_background, daemon=True)
+    thread.start()
+
+    return {
+        "status": "started",
+        "message": "Training pipeline started in background. Poll /ml/train/status to track progress.",
+        "started_at": _training_status["last_run"],
+    }
 
 
 @app.get("/ml/train/status")
 def get_training_status():
-    """Check if a training run is in progress and see the last result."""
+    """
+    Check training progress.
+
+    - running=true, current_step=X → training in progress
+    - running=false, last_result.status=success → completed
+    - running=false, last_result.status=failed → failed
+    """
     return _training_status
