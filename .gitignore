@@ -25,3 +25,8 @@ node_modules/
 
 data/wallet_embeddings.csv
 data/wallet_edges.csv
+data/rf_predictions.csv
+data/gnn_predictions.csv
+data/final_predictions.csv
+data/contract_risk_cache.json
+data/wallet_transactions.json
