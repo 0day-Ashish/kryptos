@@ -25,7 +25,7 @@ try:
     from backend.auth.routes import router as auth_router, users_router
     from backend.auth.watchlist_routes import router as watchlist_router
     from backend.auth.plans import (
-        require_plan, require_feature, check_scan_quota,
+        require_plan, require_feature,
         get_plan_limits, get_batch_limit, get_watchlist_limit, PLAN_LIMITS,
     )
     from backend.auth.auth import get_current_user, get_optional_user
@@ -34,7 +34,7 @@ except ModuleNotFoundError:
     from auth.routes import router as auth_router, users_router
     from auth.watchlist_routes import router as watchlist_router
     from auth.plans import (
-        require_plan, require_feature, check_scan_quota,
+        require_plan, require_feature,
         get_plan_limits, get_batch_limit, get_watchlist_limit, PLAN_LIMITS,
     )
     from auth.auth import get_current_user, get_optional_user
@@ -212,7 +212,6 @@ def analyze_wallet(
     request: Request,
     address: str,
     chain_id: int = Query(default=1, description="Chain ID to query"),
-    _user: User = Depends(check_scan_quota),
 ):
     # ENS resolution — accept vitalik.eth or raw address
     resolved = resolve_input(address)
