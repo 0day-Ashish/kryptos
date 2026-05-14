@@ -62,10 +62,56 @@ Wallet Address
 
 1. **Fetch** — Pulls normal, internal, and token transfer transactions from the Etherscan V2 API
 2. **Extract** — Computes 32+ behavioral features (value entropy, gas anomalies, time clustering, round-number patterns, counterparty diversity, etc.)
-3. **Score** — Hybrid scoring: Isolation Forest ML model (70%) + heuristic rule engine (30%), with optional GNN-based graph scoring
+3. **Score** — Hybrid scoring: pre-trained **Isolation Forest + Random Forest** (via `trained_model_bridge`), a **local** Isolation Forest on the wallet + neighbors, and **heuristic** rules; then sanctions / community modifiers (**Machine learning pipeline** section below). Optional **GNN** depth via `GET /gnn/{address}`.
 4. **Analyze** — Runs advanced detectors: MEV activity, bridge usage, temporal anomalies, cross-chain patterns, fund flow tracing
 5. **Visualize** — Interactive force-directed graph, daily activity timeline, counterparty table, and risk breakdowns
 6. **Store** — Writes the report on-chain to the `RiskRegistry` smart contract on Base Sepolia
+
+---
+
+## 🧪 Machine Learning Pipeline
+
+Pre-trained models live under **`models/`** at the repo root (`isolation_forest.pkl`, `iforest_scaler.pkl`, `random_forest.pkl`, `random_forest_meta.json`, GNN artifacts). Training happens **offline** in **`ml/`**; the API loads artifacts at startup.
+
+### Live scoring (wallet analysis)
+
+| Stage | What happens |
+|-------|----------------|
+| **Features** | `backend/ml/features.py` builds behavioral features from fetched txs. |
+| **Global IF + RF** | `trained_model_bridge.py` runs the **scaled Isolation Forest** → anomaly features, then **Random Forest** `predict_proba` → scam probability / risk score. Enriched models may include graph/GNN columns from training; **missing live graph features are zero-filled** when not recomputed per request. |
+| **Local IF** | `WalletScorer` fits an **Isolation Forest** on the target + **neighbor** feature rows for local context. |
+| **Heuristics** | Rule-based boosts (e.g. burst ratio, round-number transfers). |
+| **Blend** | When global models load: **60%** trained RF risk + **10%** local IF + **30%** heuristics (fallback: heavier weight on local IF if artifacts missing). |
+| **API layer** | Sanctions, community modifiers, labels in `main.py`. |
+
+**Offline batch fusion** (`ml/combine_models.py`) merges **RF + GNN** CSV outputs, adds **contract-interaction risk**, normalizes, and fuses with **dynamic weights** (and rule overrides) into cohort-level outputs such as `final_predictions.csv` — complementary to single-wallet **live** `/analyze`.
+
+### Training scripts (run from `ml/` with repo root on `PYTHONPATH`)
+
+| Script | Role |
+|--------|------|
+| `train_iforest.py` | Train global Isolation Forest + scaler |
+| `train_rf_enriched.py` | Leakage-safe **enriched Random Forest**: base + IF outputs + graph features + **GNN score**; saves `random_forest.pkl` + metadata |
+| `gnn_pipeline.py` | Invoked from enriched training — GraphSAGE-style GNN |
+| `combine_models.py` | Merge RF/GNN predictions, contract risk, final labels & reasons |
+
+**Backend:** `POST /ml/train` runs these steps in a **background thread**; poll `GET /ml/train/status`.
+
+> **Full backend reference:** [backend/README.md](backend/README.md) — env vars, auth, rate limits, API tables.
+
+---
+
+## 💬 NLP (Google Gemini)
+
+Smart-contract **audit text** and structured summaries use **Google Gemini** (`google-genai`), not OpenAI.
+
+| Use case | Location |
+|----------|----------|
+| PDF risk reports | `GET /report/{address}/pdf` — builds text from analysis + flags, calls Gemini, renders via `report_pdf.py` |
+| Audit text analysis | `POST /contract-audit-analyze` — `backend/ml/audit_nlp_analyzer.py` |
+| Default model | `gemini-2.0-flash` (configurable) |
+
+Set **`GEMINI_API_KEY`** in the environment. If the key is absent, PDFs may still generate without the full AI narrative block.
 
 ---
 
@@ -135,7 +181,7 @@ Wallet Address
 - **Top counterparties table** — sorted by volume, with known labels
 - **Animated risk progress bar** — color transitions from green → yellow → red
 - **12 analysis tabs** — Overview, Graph, Timeline, Features, Community, ENS, Cross-chain, Temporal, MEV, Bridges, Trace, Similar
-- **PDF report export** — downloadable risk assessment reports
+- **PDF report export** — downloadable risk assessment reports (optional **Gemini** narrative sections when `GEMINI_API_KEY` is set)
 
 ### 🔐 Authentication
 - **Sign-In with Ethereum (SIWE)** — wallet-based authentication
@@ -173,7 +219,8 @@ Wallet Address
 | **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS 4, Framer Motion |
 | **Backend** | FastAPI (Python 3.10+), Uvicorn, SQLAlchemy |
 | **Auth** | SIWE (Sign-In with Ethereum), PyJWT, eth-account |
-| **ML / AI** | scikit-learn (Isolation Forest), pandas, NumPy, NetworkX |
+| **ML / AI** | scikit-learn (Isolation Forest, Random Forest), PyTorch (GNN), pandas, NumPy, NetworkX, node2vec |
+| **NLP** | Google Gemini (`google-genai`, e.g. `gemini-2.0-flash`) for audit PDFs & contract-audit NLP |
 | **Blockchain Data** | Etherscan V2 API (14 chains) |
 | **Smart Contract** | Solidity 0.8.24, Hardhat, Base Sepolia |
 | **On-Chain** | Web3.py, Base Sepolia RPC |
