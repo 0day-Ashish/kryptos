@@ -171,6 +171,50 @@ export const api = {
   
   getSharedReportMeta: (reportId: string) =>
     fetchApi<SharedReportMeta>(`/shared/${reportId}/meta`),
+
+  liveFeed: (limit: number = 20) =>
+    fetchApi<{
+      feed: Array<{
+        address: string
+        risk_score: number
+        risk_label: string
+        chain: string
+        chain_id: number
+        flags_count: number
+        top_flags: string[]
+        tx_count: number
+        is_sanctioned: boolean
+        scanned_at: string
+      }>
+      stats: { total_recent: number; high_risk: number; medium_risk: number; low_risk: number }
+    }>(`/feed/recent?limit=${limit}`),
+
+  portfolio: (address: string, chainId: number = 1) =>
+    fetchApi<{
+      address: string
+      chain_id: number
+      portfolio_risk_score: number
+      portfolio_risk_label: string
+      avg_counterparty_risk: number
+      counterparties_scanned: number
+      risk_breakdown: { low: number; medium: number; high: number; critical: number }
+      counterparties: Array<{
+        address: string
+        risk_score: number
+        risk_label: string
+        interaction_count: number
+      }>
+    }>(`/portfolio/${address}?chain_id=${chainId}`),
+
+  plansCurrent: () =>
+    fetchApi<{
+      authenticated: boolean
+      plan: string
+      limits: Record<string, any>
+      scans_used_today: number
+      scans_remaining: number | string
+      upgrade_message?: string
+    }>("/plans/current"),
 }
 
 export type ApiClient = typeof api

@@ -27,8 +27,9 @@ export const COLORS = {
 
 export const SIDEBAR_ITEMS = [
   { id: "dashboard", label: "Dashboard", icon: "LayoutDashboard" },
-  { id: "portfolio", label: "Portfolio", icon: "Wallet" },
+  { id: "portfolio", label: "Portfolio Risk", icon: "Wallet" },
   { id: "wallet-scanner", label: "Wallet Scanner", icon: "Search" },
+  { id: "threat-feed", label: "Threat Feed", icon: "Zap" },
   { id: "batch-analysis", label: "Batch Analysis", icon: "Zap" },
   { id: "risk-reports", label: "Risk Reports", icon: "FileWarning" },
   { id: "pricing", label: "Pricing", icon: "CreditCard" },
