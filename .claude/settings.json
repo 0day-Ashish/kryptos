@@ -1,0 +1,22 @@
+{
+  "model": "haiku",
+  "permissions": {
+    "allow": [
+      "Bash(node .skyhop/relay.mjs wait)"
+    ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.skyhop/relay.mjs\"",
+            "timeout": 1200,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  }
+}
