@@ -36,55 +36,75 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 
 const plans = [
   {
-    name: "Free",
+    name: "Anonymous",
     price: "$0",
-    period: "forever",
-    description: "Perfect for exploring Kryptos",
+    period: "no signup",
+    description: "Start scanning instantly — no wallet needed",
     gradient: "from-gray-800 to-gray-900",
     features: [
-      { name: "5 scans/day", included: true },
-      { name: "Basic risk score", included: true },
-      { name: "1 blockchain", included: true },
-      { name: "Basic wallet analysis", included: true },
+      { name: "15 scans/day", included: true },
+      { name: "All 14 chains", included: true },
+      { name: "Token scanner", included: true },
+      { name: "Contract auditor", included: true },
+      { name: "Community reports", included: true },
+      { name: "PDF reports (watermarked)", included: true },
     ],
-    notIncluded: ["Unlimited scans", "All 14 chains", "PDF reports", "API access"],
-    cta: "Get Started",
+    notIncluded: ["Watchlist", "Batch analysis", "Fund flow tracing"],
+    cta: "Start Scanning",
+    ctaVariant: "outline",
+  },
+  {
+    name: "Free",
+    price: "$0",
+    period: "connect wallet",
+    description: "Unlock more with a free wallet connection",
+    gradient: "from-gray-700 to-gray-800",
+    features: [
+      { name: "50 scans/day", included: true },
+      { name: "All 14 chains", included: true },
+      { name: "Watchlist (5 wallets)", included: true },
+      { name: "Batch scan (10/batch)", included: true },
+      { name: "Full PDF reports", included: true },
+      { name: "On-chain report minting", included: true },
+      { name: "Scan history", included: true },
+      { name: "CSV export", included: true },
+    ],
+    notIncluded: ["Fund flow tracing", "API access"],
+    cta: "Connect Wallet",
     ctaVariant: "outline",
   },
   {
     name: "Pro",
-    price: "$19",
-    period: "/month",
+    price: "$9",
+    period: "/month in CELO",
     description: "For serious traders & analysts",
     gradient: "from-white to-gray-200",
     popular: true,
     features: [
       { name: "Unlimited scans", included: true },
       { name: "All 14 chains", included: true },
-      { name: "PDF reports", included: true },
-      { name: "Watchlist (20 wallets)", included: true },
+      { name: "Watchlist (50 wallets)", included: true },
+      { name: "Batch scan (50/batch)", included: true },
       { name: "Fund flow tracing", included: true },
-      { name: "Bulk scan (10/batch)", included: true },
+      { name: "Full PDF reports", included: true },
       { name: "CSV export", included: true },
       { name: "On-chain reports", included: true },
     ],
-    notIncluded: ["API access", "Priority support"],
+    notIncluded: ["API access"],
     cta: "Subscribe Now",
     ctaVariant: "solid",
   },
   {
     name: "Enterprise",
-    price: "$99",
+    price: "$49",
     period: "/month",
     description: "For teams & businesses",
     gradient: "from-gray-700 to-gray-800",
     features: [
       { name: "Everything in Pro", included: true },
-      { name: "Bulk scan (50/batch)", included: true },
+      { name: "Unlimited watchlist", included: true },
       { name: "API access", included: true },
       { name: "Priority support", included: true },
-      { name: "CSV export", included: true },
-      { name: "On-chain reports", included: true },
       { name: "Custom integrations", included: true },
       { name: "Dedicated account manager", included: true },
     ],
@@ -134,8 +154,17 @@ export default function PricingPage() {
   const [isUpgrading, setIsUpgrading] = useState(false)
 
   const handlePlanClick = async (planName: string) => {
+    if (planName === "Anonymous") {
+      router.push("/wallet-scanner")
+      return
+    }
+
     if (planName === "Free") {
-      router.push("/dashboard")
+      if (!isAuthenticated) {
+        router.push("/auth")
+      } else {
+        router.push("/dashboard")
+      }
       return
     }
 
@@ -213,7 +242,7 @@ export default function PricingPage() {
         {/* Pricing Cards */}
         <section className="relative z-10 px-6 pb-20">
           <div className="mx-auto max-w-6xl">
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
               {plans.map((plan, index) => (
                 <motion.div
                   key={plan.name}

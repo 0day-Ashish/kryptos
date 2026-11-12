@@ -26,6 +26,7 @@ try:
     from backend.auth.watchlist_routes import router as watchlist_router
     from backend.auth.plans import (
         require_plan, require_feature, check_scan_quota,
+        check_scan_quota_flexible, check_pdf_access,
         get_plan_limits, get_batch_limit, get_watchlist_limit, PLAN_LIMITS,
     )
     from backend.auth.auth import get_current_user, get_optional_user
@@ -35,6 +36,7 @@ except ModuleNotFoundError:
     from auth.watchlist_routes import router as watchlist_router
     from auth.plans import (
         require_plan, require_feature, check_scan_quota,
+        check_scan_quota_flexible, check_pdf_access,
         get_plan_limits, get_batch_limit, get_watchlist_limit, PLAN_LIMITS,
     )
     from auth.auth import get_current_user, get_optional_user
@@ -206,13 +208,70 @@ def list_chains():
     """Return all supported chains for the frontend dropdown."""
     return {"chains": SUPPORTED_CHAINS, "default": 1}
 
+
+@app.get("/plans/current")
+async def current_plan_info(
+    request: Request,
+    wallet: Optional[str] = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Return the current user's plan and limits.
+    Works for both authenticated and anonymous users.
+    """
+    try:
+        from backend.auth.plans import _anon_scan_counts, _get_client_ip, ANON_DAILY_LIMIT
+    except ModuleNotFoundError:
+        from auth.plans import _anon_scan_counts, _get_client_ip, ANON_DAILY_LIMIT
+
+    if wallet is None:
+        # Anonymous user
+        ip = _get_client_ip(request)
+        today = datetime.now().date()
+        entry = _anon_scan_counts.get(ip, {"count": 0, "date": None})
+        used = entry["count"] if entry.get("date") == today else 0
+        limits = get_plan_limits("anonymous")
+        return {
+            "authenticated": False,
+            "plan": "anonymous",
+            "limits": limits,
+            "scans_used_today": used,
+            "scans_remaining": max(0, ANON_DAILY_LIMIT - used),
+            "upgrade_message": "Connect your wallet (free!) to unlock 50 scans/day, watchlist, batch analysis, and full PDF reports.",
+        }
+
+    user = db.query(User).filter(User.wallet_address == wallet).first()
+    if user is None:
+        limits = get_plan_limits("anonymous")
+        return {
+            "authenticated": True,
+            "plan": "anonymous",
+            "limits": limits,
+            "scans_used_today": 0,
+            "scans_remaining": limits["daily_scans"],
+        }
+
+    plan = user.plan or "free"
+    limits = get_plan_limits(plan)
+    daily_limit = limits["daily_scans"]
+    remaining = "unlimited" if daily_limit == -1 else max(0, daily_limit - user.daily_scan_count)
+
+    return {
+        "authenticated": True,
+        "plan": plan,
+        "wallet": wallet,
+        "limits": limits,
+        "scans_used_today": user.daily_scan_count,
+        "scans_remaining": remaining,
+    }
+
 @app.get("/analyze/{address}")
 @limiter.limit("10/minute")
 def analyze_wallet(
     request: Request,
     address: str,
     chain_id: int = Query(default=1, description="Chain ID to query"),
-    _user: User = Depends(check_scan_quota),
+    _user: Optional[User] = Depends(check_scan_quota_flexible),
 ):
     # ENS resolution — accept vitalik.eth or raw address
     resolved = resolve_input(address)
@@ -585,6 +644,152 @@ def analyze_wallet(
         "on_chain": on_chain,
     }
 
+    # Track in live feed (non-blocking)
+    try:
+        _add_to_feed(result)
+    except Exception:
+        pass
+
+    return result
+
+
+# ── Live Threat Feed ─────────────────────────────────────────────────────────
+# In-memory ring buffer of recent scans for the live feed widget.
+
+from collections import deque
+
+_live_feed: deque = deque(maxlen=100)
+
+
+def _add_to_feed(analysis: dict):
+    """Add a scan result to the live feed."""
+    entry = {
+        "address": analysis.get("address", ""),
+        "risk_score": analysis.get("risk_score", 0),
+        "risk_label": analysis.get("risk_label", "Unknown"),
+        "chain": analysis.get("chain", {}).get("name", "Ethereum"),
+        "chain_id": analysis.get("chain", {}).get("id", 1),
+        "flags_count": len(analysis.get("flags", [])),
+        "top_flags": analysis.get("flags", [])[:3],
+        "tx_count": analysis.get("tx_count", 0),
+        "is_sanctioned": analysis.get("sanctions", {}).get("is_sanctioned", False),
+        "scanned_at": datetime.utcnow().isoformat() + "Z",
+    }
+    _live_feed.appendleft(entry)
+
+
+@app.get("/feed/recent")
+def live_threat_feed(limit: int = Query(default=20, ge=1, le=100)):
+    """
+    Get the most recent wallet scans across the platform.
+    Powers the live threat feed on the homepage.
+    """
+    items = list(_live_feed)[:limit]
+
+    # Stats
+    total = len(_live_feed)
+    high_risk = sum(1 for i in items if i["risk_score"] >= 70)
+    medium_risk = sum(1 for i in items if 30 <= i["risk_score"] < 70)
+    low_risk = sum(1 for i in items if i["risk_score"] < 30)
+
+    return {
+        "feed": items,
+        "stats": {
+            "total_recent": total,
+            "high_risk": high_risk,
+            "medium_risk": medium_risk,
+            "low_risk": low_risk,
+        },
+    }
+
+
+# ── Portfolio Risk Dashboard ─────────────────────────────────────────────────
+
+@app.get("/portfolio/{address}")
+@limiter.limit("5/minute")
+def portfolio_risk(
+    request: Request,
+    address: str,
+    chain_id: int = Query(default=1),
+):
+    """
+    Portfolio risk dashboard — scan a wallet's top counterparties
+    and return an aggregate risk profile.
+    """
+    target = address.lower()
+
+    # Step 1: Fetch the target's transactions
+    normal_txns = fetch_transactions(target, chain_id, max_results=200)
+    if not normal_txns:
+        return {
+            "address": target,
+            "chain_id": chain_id,
+            "portfolio_risk_score": 0,
+            "counterparties": [],
+            "risk_breakdown": {"low": 0, "medium": 0, "high": 0, "critical": 0},
+            "error": "No transactions found",
+        }
+
+    # Step 2: Get top counterparties
+    neighbors = discover_neighbors(target, normal_txns, max_neighbors=10)
+
+    # Step 3: Quick-score each counterparty
+    scored = []
+    risk_counts = {"low": 0, "medium": 0, "high": 0, "critical": 0}
+    total_risk = 0
+
+    for nb in neighbors[:10]:
+        nb_addr = nb.get("address", "") if isinstance(nb, dict) else nb
+        try:
+            nb_txns = fetch_transactions(nb_addr, chain_id, max_results=50)
+            if nb_txns:
+                nb_features = extract_features(nb_addr, nb_txns)
+                nb_score = score_wallet(nb_features, nb_txns, nb_addr, chain_id)
+                risk = nb_score.get("risk_score", 0)
+            else:
+                risk = 0
+        except Exception:
+            risk = 0
+
+        label = (
+            "critical" if risk >= 80
+            else "high" if risk >= 60
+            else "medium" if risk >= 30
+            else "low"
+        )
+        risk_counts[label] += 1
+        total_risk += risk
+
+        scored.append({
+            "address": nb_addr,
+            "risk_score": risk,
+            "risk_label": label,
+            "interaction_count": nb.get("tx_count", 0) if isinstance(nb, dict) else 0,
+        })
+
+    # Step 4: Aggregate portfolio risk
+    n = len(scored) or 1
+    avg_risk = total_risk / n
+    # Weight high-risk counterparties more heavily
+    high_risk_pct = (risk_counts["high"] + risk_counts["critical"]) / n * 100
+    portfolio_score = min(100, int(avg_risk * 0.6 + high_risk_pct * 0.4))
+
+    return {
+        "address": target,
+        "chain_id": chain_id,
+        "portfolio_risk_score": portfolio_score,
+        "portfolio_risk_label": (
+            "CRITICAL" if portfolio_score >= 80
+            else "HIGH" if portfolio_score >= 60
+            else "MEDIUM" if portfolio_score >= 30
+            else "LOW"
+        ),
+        "avg_counterparty_risk": round(avg_risk, 1),
+        "counterparties_scanned": len(scored),
+        "risk_breakdown": risk_counts,
+        "counterparties": sorted(scored, key=lambda x: x["risk_score"], reverse=True),
+    }
+
 
 @app.get("/balance/{address}")
 @limiter.limit("30/minute")
@@ -683,9 +888,10 @@ def similar_wallets(
 
 @app.get("/report/{address}/pdf")
 def download_pdf_report(
+    request: Request,
     address: str,
     chain_id: int = Query(default=1),
-    _user: User = Depends(require_feature("pdf_reports")),
+    pdf_access: dict = Depends(check_pdf_access),
 ):
     """Generate and download a PDF investigation report with AI-powered analysis."""
     try:
@@ -799,7 +1005,9 @@ def download_pdf_report(
             nlp_analysis = None
         
         # Generate PDF with optional NLP results
-        pdf_buffer = generate_pdf_report(analysis, nlp_analysis)
+        # Watermark for anonymous / free-tier users
+        use_watermark = pdf_access.get("watermark", True)
+        pdf_buffer = generate_pdf_report(analysis, nlp_analysis, watermark=use_watermark)
         
         short = address[:10].lower()
         return StreamingResponse(
@@ -924,7 +1132,7 @@ def batch_analysis(
     """Analyze multiple addresses in one request. Batch size depends on plan."""
     max_batch = get_batch_limit(wallet, db)
     if max_batch == 0:
-        raise HTTPException(status_code=403, detail="Batch analysis requires a Pro or Enterprise plan.")
+        raise HTTPException(status_code=403, detail="Batch analysis requires connecting your wallet. Connect for free to unlock batch scans (up to 10 addresses).")
     if len(req.addresses) > max_batch:
         raise HTTPException(status_code=400, detail=f"Your plan allows max {max_batch} addresses per batch.")
     return analyze_batch(
@@ -956,7 +1164,6 @@ def contract_security_audit(
     request: Request,
     address: str,
     chain_id: int = Query(default=1, description="Chain ID"),
-    _user: User = Depends(require_feature("contract_audit")),
 ):
     """Run a static security audit on a smart contract."""
     try:
@@ -978,7 +1185,7 @@ def batch_csv_analysis(
     """Analyze addresses from CSV content."""
     max_batch = get_batch_limit(wallet, db)
     if max_batch == 0:
-        raise HTTPException(status_code=403, detail="Batch analysis requires a Pro or Enterprise plan.")
+        raise HTTPException(status_code=403, detail="Batch analysis requires connecting your wallet. Connect for free to unlock batch scans (up to 10 addresses).")
     addresses = parse_csv_addresses(req.csv_content)
     if not addresses:
         return {"error": "No valid addresses found in CSV"}
@@ -1011,7 +1218,7 @@ async def batch_upload_analysis(
     """
     max_batch = get_batch_limit(wallet, db)
     if max_batch == 0:
-        raise HTTPException(status_code=403, detail="Batch analysis requires a Pro or Enterprise plan.")
+        raise HTTPException(status_code=403, detail="Batch analysis requires connecting your wallet. Connect for free to unlock batch scans (up to 10 addresses).")
 
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only .csv files are accepted")

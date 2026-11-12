@@ -7,7 +7,11 @@ from datetime import datetime
 from typing import Any, Dict
 
 
-def generate_pdf_report(analysis: Dict[str, Any], nlp_analysis: Dict[str, Any] = None) -> BytesIO:
+def generate_pdf_report(
+    analysis: Dict[str, Any],
+    nlp_analysis: Dict[str, Any] = None,
+    watermark: bool = False,
+) -> BytesIO:
     """
     Generate a PDF investigation report from analysis data.
 
@@ -15,6 +19,7 @@ def generate_pdf_report(analysis: Dict[str, Any], nlp_analysis: Dict[str, Any] =
     ----------
     analysis : The full analysis result dict from /analyze endpoint.
     nlp_analysis : Optional NLP-based vulnerability analysis results.
+    watermark : If True, add a diagonal watermark on each page (free tier).
 
     Returns
     -------
@@ -33,6 +38,26 @@ def generate_pdf_report(analysis: Dict[str, Any], nlp_analysis: Dict[str, Any] =
     y = height - margin
 
     # ── Helper functions ──
+    def draw_watermark():
+        """Draw a diagonal watermark across the current page."""
+        if not watermark:
+            return
+        c.saveState()
+        c.setFillColor(colors.Color(0.85, 0.85, 0.85, alpha=0.4))
+        c.setFont("Helvetica-Bold", 36)
+        c.translate(width / 2, height / 2)
+        c.rotate(45)
+        c.drawCentredString(0, 0, "KRYPTOS FREE REPORT")
+        c.restoreState()
+        # Smaller nudge text
+        c.saveState()
+        c.setFillColor(colors.Color(0.75, 0.75, 0.75, alpha=0.35))
+        c.setFont("Helvetica", 14)
+        c.translate(width / 2, height / 2 - 40)
+        c.rotate(45)
+        c.drawCentredString(0, 0, "Connect wallet for full report")
+        c.restoreState()
+
     def draw_line(y_pos: float):
         c.setStrokeColor(colors.Color(0.8, 0.8, 0.8))
         c.setLineWidth(0.5)
@@ -42,8 +67,12 @@ def generate_pdf_report(analysis: Dict[str, Any], nlp_analysis: Dict[str, Any] =
     def check_page(y_pos: float, needed: float = 60) -> float:
         if y_pos < needed:
             c.showPage()
+            draw_watermark()
             return height - margin
         return y_pos
+
+    # Draw watermark on the first page
+    draw_watermark()
 
     # ── Page 1: Header ──
     c.setFont("Helvetica-Bold", 28)
