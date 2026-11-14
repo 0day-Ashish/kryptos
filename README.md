@@ -32,7 +32,7 @@ Core capabilities:
 - **Wallet Watchlist** — Persistent monitoring dashboard with alert thresholds
 - **On-Chain Reports** — Risk scores stored permanently on Base Sepolia via a Solidity smart contract
 - **Chrome Extension** — Hover-to-scan on block explorers (Etherscan, BscScan, etc.)
-- **Discord Bot** — Slash commands for wallet scanning in Discord servers
+- **Discord Bot** — Slash commands for wallet scanning in Discord servers.
 
 ---
 

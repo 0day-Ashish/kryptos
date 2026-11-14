@@ -40,6 +40,7 @@ export default function Sidebar() {
     if (path === "/") return "dashboard";
     if (path.startsWith("/portfolio")) return "portfolio";
     if (path.startsWith("/dashboard")) return "dashboard";
+    if (path.startsWith("/threat-feed")) return "threat-feed";
     return path.slice(1) || "dashboard";
   };
 
@@ -160,7 +161,7 @@ export default function Sidebar() {
             )}
             {!collapsed && (
               <p className="mt-1 text-xs text-[#888888]">
-                {isPro ? "Unlimited access" : "5 scans/day"}
+                {isPro ? "Unlimited access" : "15 scans/day"}
               </p>
             )}
             {collapsed && (

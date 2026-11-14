@@ -1,430 +1,421 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import dynamic from "next/dynamic"
+import { motion } from "framer-motion"
 import { useRouter } from "next/navigation"
-import { Search, Plus, X, Loader2, ArrowUpRight, ArrowDownLeft, Copy } from "lucide-react"
+import Link from "next/link"
+import {
+  Search, Loader2, Shield, AlertTriangle, Users, ArrowRight,
+  Activity, PieChart, TrendingUp, Wallet, ExternalLink, ChevronRight,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import Sidebar from "@/components/dashboard/sidebar"
 import Header from "@/components/dashboard/header"
-import AccountsTable from "@/components/dashboard/accounts-table"
-import TransactionsTable from "@/components/dashboard/transactions-table"
-import CountryWallets from "@/components/dashboard/country-wallets"
 import { api } from "@/lib/api"
-import { CHAINS } from "@/lib/constants"
 import { useSession } from "@/lib/session"
-import { formatAddress } from "@/lib/wallet"
-import FreePlanGuard from "@/components/dashboard/free-plan-guard"
+import { CHAINS } from "@/lib/constants"
 
-const GlobeVisualization = dynamic(
-  () => import("@/components/dashboard/globe-visualization"),
-  { ssr: false }
-)
-
-interface WatchedWallet {
+interface Counterparty {
   address: string
-  label: string
-  network: string
-  riskScore: number
-  riskLabel: string
-  balance: number
-  lastSeen: number
+  risk_score: number
+  risk_label: string
+  interaction_count: number
 }
 
-interface RecentTransaction {
-  hash: string
-  from: string
-  to: string
-  value: number
-  timestamp: number
-  status: "success" | "failed"
-  chain: string
-  type: "in" | "out"
+interface PortfolioData {
+  address: string
+  chain_id: number
+  portfolio_risk_score: number
+  portfolio_risk_label: string
+  avg_counterparty_risk: number
+  counterparties_scanned: number
+  risk_breakdown: { low: number; medium: number; high: number; critical: number }
+  counterparties: Counterparty[]
 }
 
-export default function PortfolioPage() {
+function riskColor(score: number) {
+  if (score >= 80) return "#ef4444"
+  if (score >= 60) return "#f97316"
+  if (score >= 30) return "#eab308"
+  return "#10b981"
+}
+
+function riskTextColor(score: number) {
+  if (score >= 80) return "text-red-400"
+  if (score >= 60) return "text-orange-400"
+  if (score >= 30) return "text-yellow-400"
+  return "text-emerald-400"
+}
+
+function riskBgColor(score: number) {
+  if (score >= 80) return "bg-red-500/10 border-red-500/20"
+  if (score >= 60) return "bg-orange-500/10 border-orange-500/20"
+  if (score >= 30) return "bg-yellow-500/10 border-yellow-500/20"
+  return "bg-emerald-500/10 border-emerald-500/20"
+}
+
+function shortAddr(addr: string) {
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`
+}
+
+export default function PortfolioRiskPage() {
   const router = useRouter()
-  const { user, isAuthenticated, token } = useSession()
+  const { user, isAuthenticated } = useSession()
   const [mounted, setMounted] = useState(false)
-  const [addWalletOpen, setAddWalletOpen] = useState(false)
-  const [walletAddress, setWalletAddress] = useState("")
-  const [walletLabel, setWalletLabel] = useState("")
-  const [selectedChain, setSelectedChain] = useState(1)
-  const [isAdding, setIsAdding] = useState(false)
-  const [wallets, setWallets] = useState<WatchedWallet[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-
-  const mockTransactions: RecentTransaction[] = [
-    {
-      hash: "0x8f2...3a1",
-      from: "0x742d35Cc6634C0532925a3b844Bc9e7595f2a3b1",
-      to: "0xa1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
-      value: 1.5,
-      timestamp: Date.now() - 3600000,
-      status: "success",
-      chain: "ETH",
-      type: "out"
-    },
-    {
-      hash: "0x7e1...2b9",
-      from: "0xc3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
-      to: "0x742d35Cc6634C0532925a3b844Bc9e7595f2a3b1",
-      value: 0.75,
-      timestamp: Date.now() - 7200000,
-      status: "success",
-      chain: "ETH",
-      type: "in"
-    },
-    {
-      hash: "0x6d0...1c8",
-      from: "0x742d35Cc6634C0532925a3b844Bc9e7595f2a3b1",
-      to: "0xd4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3",
-      value: 0.25,
-      timestamp: Date.now() - 14400000,
-      status: "success",
-      chain: "ETH",
-      type: "out"
-    },
-    {
-      hash: "0x5c9...0b7",
-      from: "0xe5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4",
-      to: "0x742d35Cc6634C0532925a3b844Bc9e7595f2a3b1",
-      value: 2.1,
-      timestamp: Date.now() - 28800000,
-      status: "success",
-      chain: "ETH",
-      type: "in"
-    },
-    {
-      hash: "0x4b8...9a6",
-      from: "0x742d35Cc6634C0532925a3b844Bc9e7595f2a3b1",
-      to: "0xf6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5",
-      value: 0.5,
-      timestamp: Date.now() - 43200000,
-      status: "failed",
-      chain: "ETH",
-      type: "out"
-    },
-  ]
+  const [address, setAddress] = useState("")
+  const [chainId, setChainId] = useState(1)
+  const [loading, setLoading] = useState(false)
+  const [portfolio, setPortfolio] = useState<PortfolioData | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
-    loadWallets()
   }, [])
 
-  const loadWallets = async () => {
-    const saved = localStorage.getItem("watchedWallets")
-    if (saved) {
-      setWallets(JSON.parse(saved))
-    }
-  }
+  const analyzePortfolio = async () => {
+    if (!address.trim()) return
 
-  const saveWallets = (newWallets: WatchedWallet[]) => {
-    setWallets(newWallets)
-    localStorage.setItem("watchedWallets", JSON.stringify(newWallets))
-  }
+    setLoading(true)
+    setError(null)
+    setPortfolio(null)
 
-  const handleAddWallet = async () => {
-    if (!walletAddress.trim()) return
-
-    setIsAdding(true)
     try {
-      const analysis = await api.analyze(walletAddress.trim(), selectedChain)
-      const newWallet: WatchedWallet = {
-        address: analysis.address,
-        label: walletLabel || analysis.ens_name || analysis.address.slice(0, 8) + "...",
-        network: CHAINS.find(c => c.id === selectedChain)?.short || "ETH",
-        riskScore: analysis.risk_score,
-        riskLabel: analysis.risk_label,
-        balance: analysis.balance,
-        lastSeen: Date.now(),
-      }
-      saveWallets([...wallets, newWallet])
-      setWalletAddress("")
-      setWalletLabel("")
-      setAddWalletOpen(false)
+      const data = await api.portfolio(address.trim(), chainId)
+      setPortfolio(data)
     } catch (err) {
-      console.error("Failed to add wallet:", err)
+      setError(err instanceof Error ? err.message : "Failed to analyze portfolio")
     } finally {
-      setIsAdding(false)
+      setLoading(false)
     }
-  }
-
-  const handleRemoveWallet = (address: string) => {
-    saveWallets(wallets.filter(w => w.address !== address))
-  }
-
-  const handleAnalyzeWallet = (address: string, chainId: number = 1) => {
-    const params = new URLSearchParams({
-      address,
-      chain: chainId.toString(),
-    })
-    router.push(`/dashboard?${params.toString()}`)
   }
 
   if (!mounted) {
     return (
       <div className="flex h-screen items-center justify-center bg-black">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
+        <Loader2 className="h-8 w-8 animate-spin text-white" />
       </div>
     )
   }
 
+  const breakdown = portfolio?.risk_breakdown
+  const total = breakdown
+    ? breakdown.low + breakdown.medium + breakdown.high + breakdown.critical
+    : 0
+
   return (
     <div className="min-h-screen bg-black">
       <Sidebar />
-
       <Header />
 
-      <main
-        className="pt-16 transition-all duration-300"
-        style={{ marginLeft: "16rem" }}
-      >
+      <main className="pt-16 transition-all duration-300" style={{ marginLeft: "16rem" }}>
         <div className="p-6">
+          {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             className="mb-6"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
+                <PieChart className="h-5 w-5 text-blue-400" />
+              </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">Portfolio</h1>
-                <p className="mt-1 text-sm text-gray-500">
-                  Manage your tracked wallets and transactions
+                <h1 className="text-2xl font-bold text-white">Portfolio Risk Dashboard</h1>
+                <p className="text-sm text-gray-500">
+                  Analyze your exposure — scan who you interact with
                 </p>
               </div>
-              {/* <button
-                onClick={() => setAddWalletOpen(true)}
-                className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-black hover:bg-gray-200"
-              >
-                <Plus className="h-4 w-4" />
-                Add Wallet
-              </button> */}
             </div>
           </motion.div>
 
-          <AnimatePresence>
-            {addWalletOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="mb-6 rounded-xl border border-[#1A1A1A] bg-[#0A0A0A] p-6"
+          {/* Search Bar */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mb-6 rounded-xl border border-white/10 bg-[#0A0A0A] p-5"
+          >
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500" />
+                <input
+                  type="text"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && analyzePortfolio()}
+                  placeholder="Enter your wallet address (0x...) or ENS name"
+                  className="w-full rounded-lg border border-white/10 bg-black py-3 pl-12 pr-4 text-white placeholder-gray-500 focus:border-white/30 focus:outline-none"
+                />
+              </div>
+              <select
+                value={chainId}
+                onChange={(e) => setChainId(Number(e.target.value))}
+                className="rounded-lg border border-white/10 bg-black px-4 py-3 text-white focus:border-white/30 focus:outline-none"
               >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-white">Add Wallet to Watchlist</h3>
-                  <button
-                    onClick={() => setAddWalletOpen(false)}
-                    className="p-1 text-gray-500 hover:text-white"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
+                {CHAINS.filter((c: any) => c.id !== 84532 && c.id !== 11155111).map((chain: any) => (
+                  <option key={chain.id} value={chain.id}>{chain.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={analyzePortfolio}
+                disabled={loading || !address.trim()}
+                className="flex items-center gap-2 rounded-lg bg-white px-6 py-3 font-medium text-black hover:bg-gray-200 disabled:opacity-50 transition-all"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Shield className="h-4 w-4" />
+                    Analyze
+                  </>
+                )}
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-gray-600">
+              We will scan your top 10 counterparties and calculate your exposure risk.
+            </p>
+          </motion.div>
+
+          {/* Loading State */}
+          {loading && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex flex-col items-center justify-center py-20"
+            >
+              <div className="relative">
+                <Loader2 className="h-16 w-16 animate-spin text-white" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Shield className="h-6 w-6 text-white" />
                 </div>
-                <div className="flex gap-3">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500" />
-                    <input
-                      type="text"
-                      value={walletAddress}
-                      onChange={(e) => setWalletAddress(e.target.value)}
-                      placeholder="Enter wallet address (0x...) or ENS name"
-                      className="w-full rounded-lg border border-[#1A1A1A] bg-[#0A0A0A] py-3 pl-12 pr-4 text-white placeholder-gray-500 focus:border-white focus:outline-none"
-                    />
+              </div>
+              <p className="mt-4 text-lg text-gray-300">Scanning counterparties...</p>
+              <p className="text-sm text-gray-500 mt-1">
+                Analyzing up to 10 wallets you&apos;ve interacted with
+              </p>
+            </motion.div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-xl border border-red-500/20 bg-red-500/5 p-6"
+            >
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-6 w-6 text-red-400" />
+                <div>
+                  <h3 className="font-semibold text-red-400">Analysis Failed</h3>
+                  <p className="text-sm text-gray-400">{error}</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Results */}
+          {portfolio && !loading && (
+            <div className="space-y-6">
+              {/* Portfolio Risk Score */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="rounded-xl border border-white/10 bg-[#0A0A0A] p-6"
+              >
+                <div className="flex items-center gap-6">
+                  {/* Score Circle */}
+                  <div className="relative h-32 w-32 flex-shrink-0">
+                    <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
+                      <circle cx="50" cy="50" r="42" fill="none" stroke="#1A1A1A" strokeWidth="8" />
+                      <circle
+                        cx="50" cy="50" r="42" fill="none"
+                        stroke={riskColor(portfolio.portfolio_risk_score)}
+                        strokeWidth="8"
+                        strokeLinecap="round"
+                        strokeDasharray={`${(portfolio.portfolio_risk_score / 100) * 264} 264`}
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-3xl font-bold text-white">{portfolio.portfolio_risk_score}</span>
+                      <span className="text-[10px] text-gray-500">/ 100</span>
+                    </div>
                   </div>
-                  <input
-                    type="text"
-                    value={walletLabel}
-                    onChange={(e) => setWalletLabel(e.target.value)}
-                    placeholder="Label (optional)"
-                    className="w-48 rounded-lg border border-[#1A1A1A] bg-[#0A0A0A] px-4 py-3 text-white placeholder-gray-500 focus:border-white focus:outline-none"
-                  />
-                  <select
-                    value={selectedChain}
-                    onChange={(e) => setSelectedChain(Number(e.target.value))}
-                    className="rounded-lg border border-[#1A1A1A] bg-[#0A0A0A] px-4 py-3 text-white focus:border-white focus:outline-none"
-                  >
-                    {CHAINS.filter(c => c.id !== 84532 && c.id !== 11155111).map((chain) => (
-                      <option key={chain.id} value={chain.id}>{chain.name}</option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={handleAddWallet}
-                    disabled={isAdding || !walletAddress.trim()}
-                    className="flex items-center gap-2 rounded-lg bg-[#00FF94] px-6 py-3 font-medium text-black hover:opacity-90 disabled:opacity-50"
-                  >
-                    {isAdding ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Adding...
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="h-4 w-4" />
-                        Add
-                      </>
-                    )}
-                  </button>
+
+                  <div className="flex-1">
+                    <h2 className="text-lg font-semibold text-white">Portfolio Risk</h2>
+                    <span className={cn("text-2xl font-bold", riskTextColor(portfolio.portfolio_risk_score))}>
+                      {portfolio.portfolio_risk_label}
+                    </span>
+                    <p className="text-sm text-gray-400 mt-2">
+                      Based on scanning {portfolio.counterparties_scanned} counterparties
+                      with an average risk of {portfolio.avg_counterparty_risk}/100.
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Address: <span className="font-mono">{shortAddr(portfolio.address)}</span>
+                    </p>
+                  </div>
+
+                  {/* Risk Breakdown Bars */}
+                  {breakdown && total > 0 && (
+                    <div className="flex-shrink-0 w-48 space-y-2">
+                      <div className="text-xs text-gray-400 mb-2">Risk Breakdown</div>
+                      {[
+                        { label: "Critical", count: breakdown.critical, color: "bg-red-500" },
+                        { label: "High", count: breakdown.high, color: "bg-orange-500" },
+                        { label: "Medium", count: breakdown.medium, color: "bg-yellow-500" },
+                        { label: "Low", count: breakdown.low, color: "bg-emerald-500" },
+                      ].map(({ label, count, color }) => (
+                        <div key={label} className="flex items-center gap-2">
+                          <span className="text-[10px] text-gray-500 w-12">{label}</span>
+                          <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                            <div
+                              className={cn("h-full rounded-full transition-all", color)}
+                              style={{ width: `${(count / total) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-400 w-4 text-right">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </motion.div>
-            )}
-          </AnimatePresence>
 
-          <div className="space-y-6">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-            >
-              <AccountsTable 
-                showAll={true} 
-                wallets={wallets.map(w => ({
-                  id: w.address,
-                  address: w.address,
-                  ensName: w.label,
-                  network: w.network as "ETH" | "BTC" | "SOL",
-                  balance: w.balance,
-                  balanceUsd: w.balance * 1800,
-                  riskScore: w.riskScore,
-                  riskLabel: w.riskLabel as "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
-                  label: w.label,
-                  firstSeen: w.lastSeen,
-                  lastSeen: w.lastSeen,
-                }))}
-                onAddWallet={() => setAddWalletOpen(true)}
-                onRemoveWallet={handleRemoveWallet}
-                onAnalyzeWallet={handleAnalyzeWallet}
-              />
-            </motion.div>
+              {/* Counterparties Table */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="rounded-xl border border-white/10 bg-[#0A0A0A] overflow-hidden"
+              >
+                <div className="flex items-center justify-between p-4 border-b border-white/5">
+                  <h3 className="text-sm font-medium text-gray-400 flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Counterparty Risk Analysis ({portfolio.counterparties.length})
+                  </h3>
+                </div>
 
+                <div className="divide-y divide-white/5">
+                  {portfolio.counterparties.map((cp, i) => (
+                    <motion.div
+                      key={cp.address}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.05 * i }}
+                    >
+                      <Link
+                        href={`/dashboard?address=${cp.address}&chain=${portfolio.chain_id}`}
+                        className="flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors group"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={cn(
+                            "h-10 w-10 rounded-xl flex items-center justify-center border",
+                            riskBgColor(cp.risk_score)
+                          )}>
+                            <span className="text-sm font-bold" style={{ color: riskColor(cp.risk_score) }}>
+                              {cp.risk_score}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="font-mono text-sm text-white">{shortAddr(cp.address)}</span>
+                            <div className="flex items-center gap-3 mt-0.5">
+                              <span className={cn("text-xs font-medium", riskTextColor(cp.risk_score))}>
+                                {cp.risk_label.toUpperCase()}
+                              </span>
+                              {cp.interaction_count > 0 && (
+                                <span className="text-xs text-gray-500">
+                                  {cp.interaction_count} interactions
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          {/* Risk bar */}
+                          <div className="w-24 h-2 bg-white/5 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${cp.risk_score}%`,
+                                backgroundColor: riskColor(cp.risk_score),
+                              }}
+                            />
+                          </div>
+                          <ChevronRight className="h-4 w-4 text-gray-600 group-hover:text-white transition-colors" />
+                        </div>
+                      </Link>
+                    </motion.div>
+                  ))}
+                </div>
+
+                {portfolio.counterparties.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                    <Users className="h-10 w-10 mb-3 opacity-30" />
+                    <p>No counterparties found</p>
+                    <p className="text-sm mt-1">This wallet may have no on-chain activity</p>
+                  </div>
+                )}
+              </motion.div>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!portfolio && !loading && !error && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
+              className="rounded-xl border border-white/10 bg-[#0A0A0A] p-12 text-center"
             >
-              <div className="rounded-xl border border-[#1A1A1A] bg-[#0A0A0A] overflow-hidden">
-                <div className="flex items-center justify-between p-4 border-b border-[#1A1A1A]">
-                  <h3 className="text-lg font-semibold text-white">Recent Transactions</h3>
-                  <button 
-                    onClick={() => router.push("/dashboard")}
-                    className="text-sm text-[#00FF94] hover:underline"
-                  >
-                    View All
-                  </button>
-                </div>
-                <FreePlanGuard feature="Full transaction history">
-                  <div className="divide-y divide-[#1A1A1A]">
-                    {mockTransactions.map((tx, index) => (
-                      <div 
-                        key={index}
-                        className="flex items-center justify-between p-4 hover:bg-[#111] transition-colors"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className={cn(
-                            "h-10 w-10 rounded-full flex items-center justify-center",
-                            tx.type === "in" ? "bg-[#00FF94]/10" : "bg-white/10"
-                          )}>
-                            {tx.type === "in" ? (
-                              <ArrowDownLeft className="h-5 w-5 text-[#00FF94]" />
-                            ) : (
-                              <ArrowUpRight className="h-5 w-5 text-white" />
-                            )}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-white font-medium">
-                                {tx.type === "in" ? "Received" : "Sent"}
-                              </span>
-                              <span className={cn(
-                                "px-2 py-0.5 rounded text-xs",
-                                tx.status === "success" ? "bg-white/10 text-white" : "bg-red-500/10 text-red-400"
-                              )}>
-                                {tx.status}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-gray-500 text-sm">
-                                {tx.type === "in" ? "From" : "To"}: {formatAddress(tx.type === "in" ? tx.from : tx.to)}
-                              </span>
-                              <button 
-                                onClick={() => navigator.clipboard.writeText(tx.type === "in" ? tx.from : tx.to)}
-                                className="text-gray-500 hover:text-white"
-                              >
-                                <Copy className="h-3 w-3" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className={cn(
-                            "font-medium",
-                            tx.type === "in" ? "text-[#00FF94]" : "text-white"
-                          )}>
-                            {tx.type === "in" ? "+" : "-"}{tx.value} ETH
-                          </div>
-                          <div className="text-gray-500 text-sm mt-1">
-                            {new Date(tx.timestamp).toLocaleString()}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </FreePlanGuard>
+              <div className="mx-auto h-16 w-16 rounded-2xl bg-white/5 flex items-center justify-center mb-4">
+                <PieChart className="h-8 w-8 text-gray-600" />
               </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-            >
-              <div className="rounded-xl border border-[#1A1A1A] bg-[#0A0A0A] overflow-hidden">
-                <div className="p-4 border-b border-[#1A1A1A]">
-                  <h3 className="text-lg font-semibold text-white">Known Entity Wallets</h3>
-                  <p className="text-sm text-gray-500 mt-1">Trusted exchanges, DeFi protocols, and notable addresses</p>
+              <h3 className="text-lg font-semibold text-white">Analyze Your Exposure</h3>
+              <p className="text-sm text-gray-400 mt-2 max-w-md mx-auto">
+                Enter your wallet address above to scan all the wallets you&apos;ve interacted with.
+                We&apos;ll score each counterparty and give you an aggregate risk profile.
+              </p>
+              <div className="mt-6 flex items-center justify-center gap-6 text-xs text-gray-500">
+                <div className="flex items-center gap-1.5">
+                  <Shield className="h-3.5 w-3.5" />
+                  Top 10 counterparties scanned
                 </div>
-                <div className="p-4 space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
-                      <span className="text-[#00FF94]">●</span> Safe Wallets (80+ Trust Score)
-                    </h4>
-                    {user && (user.premium_tier === "pro" || user.premium_tier === "enterprise") ? (
-                      <CountryWallets filter="safe" />
-                    ) : (
-                      <FreePlanGuard feature="Safe trusted wallets">
-                        <CountryWallets filter="safe" />
-                      </FreePlanGuard>
-                    )}
-                  </div>
-                  <div className="mt-4">
-                    <h4 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
-                      <span className="text-[#FF3B3B]">●</span> High Risk / Unknown Wallets
-                    </h4>
-                    <CountryWallets filter="risky" />
-                  </div>
+                <div className="flex items-center gap-1.5">
+                  <Activity className="h-3.5 w-3.5" />
+                  ML + heuristic scoring
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  Aggregate risk profile
                 </div>
               </div>
             </motion.div>
+          )}
 
-            <motion.footer
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="mt-8 border-t border-[#1A1A1A] py-6"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-6 w-6 items-center justify-center rounded bg-white">
-                    <span className="text-xs font-bold text-black">K</span>
-                  </div>
-                  <span className="text-sm font-medium text-gray-400">KRYPTOS</span>
+          {/* Footer */}
+          <motion.footer
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="mt-8 border-t border-[#1A1A1A] py-6"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-6 w-6 items-center justify-center rounded bg-white">
+                  <span className="text-xs font-bold text-black">K</span>
                 </div>
-                <p className="text-xs text-gray-600">
-                  © 2026 KRYPTOS. Blockchain Intelligence Platform.
-                </p>
+                <span className="text-sm font-medium text-gray-400">KRYPTOS</span>
               </div>
-            </motion.footer>
-          </div>
+              <p className="text-xs text-gray-600">
+                © 2026 KRYPTOS. Blockchain Intelligence Platform.
+              </p>
+            </div>
+          </motion.footer>
         </div>
       </main>
     </div>
